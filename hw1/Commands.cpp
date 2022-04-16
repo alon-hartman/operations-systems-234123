@@ -57,7 +57,7 @@ int _parseCommandLine(const char* cmd_line, char** args) {
   FUNC_EXIT()
 }
 
-bool _isBackgroundComamnd(const char* cmd_line) {
+bool _isBackgroundCommand(const char* cmd_line) {
   const string str(cmd_line);
   return str[str.find_last_not_of(WHITESPACE)] == '&';
 }
@@ -84,13 +84,11 @@ void _removeBackgroundSign(char* cmd_line) {
 
 SmallShell::SmallShell() : last_path(NULL), prompt("smash> ") {
 // TODO: add your implementation
-  // cleanArgsArray();
 }
 
 SmallShell::~SmallShell() {
 // TODO: add your implementation
   free(last_path);
-  // cleanArgsArray();
 }
 
 /**
@@ -118,13 +116,10 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
   else if (firstWord.compare("cd") == 0) {
     return new ChangeDirCommand(cmd_line, &last_path);
   }
-  /*
-  else if ...
-  .....
+
   else {
     return new ExternalCommand(cmd_line);
   }
-  */
   return nullptr;
 }
 
@@ -223,4 +218,32 @@ QuitCommand::QuitCommand(const char* cmd_line, JobsList* jobs) : BuiltInCommand(
 
 void QuitCommand::execute() {
   exit(0);  // temporary
+}
+
+/** EXTERNAL COMMANDS**/
+ExternalCommand::ExternalCommand(const char* cmd_line) : Command(cmd_line), is_in_bg(_isBackgroundCommand(cmd_line)) {}
+
+void ExternalCommand::execute() {
+  pid_t pid = fork();
+  if(pid == -1) {
+    perror("smash error: fork failed");
+  }
+  if(pid == 0) {  // child
+    setpgrp();
+    int success = execl("/bin/bash", "bash", "-c", cmd_line, NULL);
+    if(success == -1) {
+      perror("smash error: execv failed");
+    }
+  }
+  else {  //parent
+    if(!is_in_bg) {
+      int success = 0;
+      do {
+        success = waitpid(pid, NULL, WNOHANG);
+      } while(success == 0);
+      if(success == -1) {
+        perror("smash error: wait failed");
+      }
+    }
+  }
 }

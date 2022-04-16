@@ -35,9 +35,13 @@ class BuiltInCommand : public Command {
 };
 
 class ExternalCommand : public Command {
+ private:
+  bool is_in_bg;
  public:
   ExternalCommand(const char* cmd_line);
-  virtual ~ExternalCommand() {}
+  virtual ~ExternalCommand() {
+    cleanArgsArray();
+  }
   void execute() override;
 };
 
