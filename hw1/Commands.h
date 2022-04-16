@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <algorithm>
 
 #define COMMAND_ARGS_MAX_LENGTH (200)
 #define COMMAND_MAX_ARGS (20)
@@ -10,14 +11,12 @@
 class Command {
 // TODO: Add your data members
  protected:
-  const char* cmd_line;
   char* args[COMMAND_MAX_ARGS];
   int num_of_args;
 
  public:
-  Command(const char* cmd_line);//: cmd_line(cmd_line) {
-  //   num_of_args = _parseCommandLine(cmd_line, args);
-  // };
+  const char* cmd_line;
+  Command(const char* cmd_line);
   virtual ~Command() {};
   virtual void execute() = 0;
   //virtual void prepare();
@@ -110,19 +109,44 @@ class QuitCommand : public BuiltInCommand {
 
 class JobsList {
  public:
-  class JobEntry {
-   // TODO: Add your data members
+  struct JobEntry {
+   int job_id;
+   pid_t pid;
+   time_t start_time;
+   char* cmd_line;
+   bool is_stopped;
+   bool operator<(JobEntry& other) {
+    return this->job_id < other.job_id;
+   }
+   bool operator==(JobEntry& other) {
+     return this->job_id == other.job_id;
+   }
+   JobEntry(Command* cmd, bool isStopped, int job_id);
+   ~JobEntry();
+   static bool StoppedLessThan(JobEntry& a, JobEntry& b) {
+     return a.job_id * a.is_stopped < b.job_id * b.is_stopped;
+   }
+   struct CompareByJobID {
+     int job_id;
+     CompareByJobID(int job_id) : job_id(job_id) {}
+     bool operator()(JobEntry& other) {
+      return job_id == other.job_id;
+     }
+   };
   };
  // TODO: Add your data members
+  std::vector<JobEntry> jobs_vec;
+
  public:
-  JobsList();
+  JobsList() : jobs_vec() {};
   ~JobsList();
+  int getMaxJobID();
   void addJob(Command* cmd, bool isStopped = false);
   void printJobsList();
   void killAllJobs();
   void removeFinishedJobs();
   JobEntry * getJobById(int jobId);
-  void removeJobById(int jobId);
+  void removeJobById(int jobId); 
   JobEntry * getLastJob(int* lastJobId);
   JobEntry *getLastStoppedJob(int *jobId);
   // TODO: Add extra methods or modify exisitng ones as needed

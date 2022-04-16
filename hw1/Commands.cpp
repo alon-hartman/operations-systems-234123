@@ -242,8 +242,96 @@ void ExternalCommand::execute() {
         success = waitpid(pid, NULL, WNOHANG);
       } while(success == 0);
       if(success == -1) {
-        perror("smash error: wait failed");
+        perror("smash error: waitpid failed");
       }
     }
   }
+}
+
+/**************************************************************************************************************/
+/**************************************jobs list implementation************************************************/
+/**************************************************************************************************************/
+/**************************************************************************************************************/
+
+/** JOB_ENTRY **/
+JobsList::JobEntry::JobEntry(Command* cmd, bool isStopped, int job_id) 
+  : job_id(job_id), pid(getpid()), start_time(time(NULL)), 
+    cmd_line(new char[strlen(cmd->cmd_line)+1]), is_stopped(isStopped) {
+      if(pid == -1) {
+        perror("smash error: getpid failed");
+      }
+      strcpy(this->cmd_line, cmd->cmd_line);
+    }
+
+JobsList::JobEntry::~JobEntry() {
+  free(cmd_line);
+}
+/** JOB_LIST **/
+int JobsList::getMaxJobID() {
+    return std::max_element(jobs_vec.begin(), jobs_vec.end())->job_id;
+    // return getLastJob()->job_id;
+}
+
+void JobsList::addJob(Command* cmd, bool isStopped) {
+  JobEntry job(cmd, isStopped, getMaxJobID()+1);
+  jobs_vec.push_back(job);
+}
+
+void JobsList::printJobsList() {
+  std::sort(jobs_vec.begin(), jobs_vec.end());
+  for(auto& it : jobs_vec) {
+    std::string stopped_string = "";
+    if(it.is_stopped == true) {
+      stopped_string = "(stopped)";
+    }
+    time_t current_time = time(NULL);
+    std::cout << "[" << it.job_id << "] " << it.cmd_line << " : " << it.pid \
+              << " " << difftime(current_time, it.start_time) << stopped_string << "\n";
+  }
+}
+void JobsList::killAllJobs() {
+  for(auto it = jobs_vec.begin(); it != jobs_vec.end(); ++it) {
+    int success = kill(it->pid, SIGKILL);
+    if(success == -1) {
+      perror("smash error: kill failed");
+    }
+  }
+}
+
+void JobsList::removeFinishedJobs() {
+  for(auto it = jobs_vec.begin(); it != jobs_vec.end(); ++it) {
+    int success = waitpid(it->pid, NULL, WNOHANG);
+    if(success > 0) {
+      jobs_vec.erase(it);
+    }
+    else if(success == -1) {
+      perror("smash error: waitpid failed");
+    }
+  }
+}
+
+JobsList::JobEntry* JobsList::getJobById(int jobId) {
+  auto it = std::find_if(jobs_vec.begin(), jobs_vec.end(), JobEntry::CompareByJobID(jobId));
+  return &*it;
+}
+
+//simply remove the job from the vector(no signals sent)
+void JobsList::removeJobById(int jobId) {
+  for(auto it = jobs_vec.begin(); it != jobs_vec.end(); ++it) {
+    if(it->job_id == jobId) {
+        jobs_vec.erase(it);
+      }
+    }
+  }
+
+JobsList::JobEntry* JobsList::getLastJob(int* lastJobId) {
+  JobEntry* job = &*std::max_element(jobs_vec.begin(), jobs_vec.end());
+  *lastJobId = job->job_id;
+  return job;
+}
+
+JobsList::JobEntry* JobsList::getLastStoppedJob(int *jobId) {
+  JobEntry* job = &*std::max_element(jobs_vec.begin(), jobs_vec.end(), JobEntry::StoppedLessThan);
+  *jobId = job->job_id;
+  return job;
 }
