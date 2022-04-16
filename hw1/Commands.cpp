@@ -84,22 +84,13 @@ void _removeBackgroundSign(char* cmd_line) {
 
 SmallShell::SmallShell() : last_path(NULL), prompt("smash> ") {
 // TODO: add your implementation
-  cleanArgsArray();
+  // cleanArgsArray();
 }
 
 SmallShell::~SmallShell() {
 // TODO: add your implementation
   free(last_path);
-  cleanArgsArray();
-}
-
-void SmallShell::cleanArgsArray() {
-  for(int i=0; i<COMMAND_MAX_ARGS; ++i) {
-    if(!args[i]) {
-      free(args[i]);
-    }
-    args[i] = nullptr;
-  }
+  // cleanArgsArray();
 }
 
 /**
@@ -109,19 +100,14 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
 	// For example:
   string cmd_s = _trim(string(cmd_line));
   string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
-  cleanArgsArray();
-  int num_of_args = _parseCommandLine(cmd_line, args);
+  // cleanArgsArray();
+  // int num_of_args = _parseCommandLine(cmd_line, args);
 
   if (firstWord.compare("pwd") == 0) {
     return new GetCurrDirCommand(cmd_line);
   }
   else if (firstWord.compare("chprompt") == 0) {
-    if(num_of_args == 1) {
-      prompt = "smash> ";
-    } else {
-      prompt = args[1] + string("> ");
-    }
-    return nullptr;
+    return new ChangePromptCommand(cmd_line, &prompt);
   }
   else if (firstWord.compare("showpid") == 0) {
     return new ShowPidCommand(cmd_line);
@@ -168,6 +154,16 @@ void Command::cleanArgsArray() {
   }
 }
 
+/** CHPROMPT **/
+ChangePromptCommand::ChangePromptCommand(const char* cmd_line, std::string* prompt) : BuiltInCommand(cmd_line), prompt(prompt) {}
+void ChangePromptCommand::execute() {
+  if(num_of_args == 1) {
+    *prompt = "smash> ";
+  }
+  else {
+    *prompt = args[1] + string("> ");
+  }
+}
 /** PWD **/
 GetCurrDirCommand::GetCurrDirCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {}
 

@@ -59,6 +59,15 @@ class RedirectionCommand : public Command {
   //void cleanup() override;
 };
 
+class ChangePromptCommand : public BuiltInCommand {
+ private:
+  std::string* prompt;
+ public:
+  ChangePromptCommand(const char* cmd_line, std::string* prompt);
+  virtual ~ChangePromptCommand() {};
+  void execute() override;
+};
+
 class ChangeDirCommand : public BuiltInCommand {
  private:
   char** plastPwd;
@@ -165,11 +174,11 @@ class TouchCommand : public BuiltInCommand {
 class SmallShell {
  private:
   // TODO: Add your data members
-  char* args[COMMAND_MAX_ARGS];
+  // char* args[COMMAND_MAX_ARGS];
   char* last_path;
 
   SmallShell();
-  void cleanArgsArray();
+  // void cleanArgsArray();
  public:
   std::string prompt;
   Command *CreateCommand(const char* cmd_line);
