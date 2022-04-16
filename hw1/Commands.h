@@ -9,20 +9,29 @@
 
 class Command {
 // TODO: Add your data members
+ protected:
   const char* cmd_line;
+  char* args[COMMAND_MAX_ARGS];
+  int num_of_args;
+
  public:
-  Command(const char* cmd_line) : cmd_line(cmd_line) {};
+  Command(const char* cmd_line);//: cmd_line(cmd_line) {
+  //   num_of_args = _parseCommandLine(cmd_line, args);
+  // };
   virtual ~Command() {};
   virtual void execute() = 0;
   //virtual void prepare();
   //virtual void cleanup();
   // TODO: Add your extra methods if needed
+  virtual void cleanArgsArray();
 };
 
 class BuiltInCommand : public Command {
  public:
   BuiltInCommand(const char* cmd_line) : Command(cmd_line) {};
-  virtual ~BuiltInCommand() {}
+  virtual ~BuiltInCommand() {
+    cleanArgsArray();
+  }
 };
 
 class ExternalCommand : public Command {
@@ -51,9 +60,11 @@ class RedirectionCommand : public Command {
 };
 
 class ChangeDirCommand : public BuiltInCommand {
-// TODO: Add your data members public:
+ private:
+  char** plastPwd;
+ public:
   ChangeDirCommand(const char* cmd_line, char** plastPwd);
-  virtual ~ChangeDirCommand() {}
+  virtual ~ChangeDirCommand() {};
   void execute() override;
 };
 
@@ -61,7 +72,7 @@ class GetCurrDirCommand : public BuiltInCommand {
   // const char* path;
  public:
   GetCurrDirCommand(const char* cmd_line);
-  virtual ~GetCurrDirCommand();
+  virtual ~GetCurrDirCommand() {};
   void execute() override;
 };
 
@@ -75,6 +86,7 @@ class ShowPidCommand : public BuiltInCommand {
 class JobsList;
 class QuitCommand : public BuiltInCommand {
 // TODO: Add your data members public:
+ public:  // was private initialy 
   QuitCommand(const char* cmd_line, JobsList* jobs);
   virtual ~QuitCommand() {}
   void execute() override;
@@ -154,6 +166,8 @@ class SmallShell {
  private:
   // TODO: Add your data members
   char* args[COMMAND_MAX_ARGS];
+  char* last_path;
+
   SmallShell();
   void cleanArgsArray();
  public:

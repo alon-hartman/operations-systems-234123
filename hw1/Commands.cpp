@@ -82,13 +82,15 @@ void _removeBackgroundSign(char* cmd_line) {
 
 // TODO: Add your implementation for classes in Commands.h 
 
-SmallShell::SmallShell() : prompt("smash> ") {
+SmallShell::SmallShell() : last_path(NULL), prompt("smash> ") {
 // TODO: add your implementation
   cleanArgsArray();
 }
 
 SmallShell::~SmallShell() {
 // TODO: add your implementation
+  free(last_path);
+  cleanArgsArray();
 }
 
 void SmallShell::cleanArgsArray() {
@@ -119,13 +121,18 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
     } else {
       prompt = args[1] + string("> ");
     }
-
     return nullptr;
   }
-  /*
   else if (firstWord.compare("showpid") == 0) {
     return new ShowPidCommand(cmd_line);
   }
+  else if(firstWord.compare("quit") == 0) {
+    return new QuitCommand(cmd_line, nullptr);
+  }
+  else if (firstWord.compare("cd") == 0) {
+    return new ChangeDirCommand(cmd_line, &last_path);
+  }
+  /*
   else if ...
   .....
   else {
@@ -143,26 +150,81 @@ void SmallShell::executeCommand(const char *cmd_line) {
     cmd->execute();
   }
   // Please note that you must fork smash process for some commands (e.g., external commands....)
+  delete cmd;
 }
 
+/** COMMAND **/
+Command::Command(const char* cmd_line) : cmd_line(cmd_line) {
+    cleanArgsArray();
+    num_of_args = _parseCommandLine(cmd_line, args);
+  };
 
-// class GetCurrDirCommand : public BuiltInCommand {
-//  public:
-//   GetCurrDirCommand(const char* cmd_line);
-//   virtual ~GetCurrDirCommand() {}
-//   void execute() override;
-// };
-
-GetCurrDirCommand::GetCurrDirCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {
-  // path = getcwd(NULL, 0);
+void Command::cleanArgsArray() {
+  for(int i=0; i<COMMAND_MAX_ARGS; ++i) {
+    if(!args[i]) {
+      free(args[i]);
+    }
+    args[i] = nullptr;
+  }
 }
+
+/** PWD **/
+GetCurrDirCommand::GetCurrDirCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {}
 
 void GetCurrDirCommand::execute() {
   char* path = getcwd(NULL, 0);
-  printf(path);
-  printf("\n");
+  if(path == NULL) {
+    perror("smash error: getcwd failed");
+    return;
+  }
+  std::cout << path << "\n";
   free(path);
 }
-GetCurrDirCommand::~GetCurrDirCommand() {
-  // free(path);
+
+/** SHOWPID **/
+ShowPidCommand::ShowPidCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {}
+
+void ShowPidCommand::execute() {
+  std::cout << "smash pid is: " << getpid() << "\n";
+}
+
+/** CD **/
+ChangeDirCommand::ChangeDirCommand(const char* cmd_line, char** plastPwd) : BuiltInCommand(cmd_line), plastPwd(plastPwd) {}
+
+void ChangeDirCommand::execute() {
+  if(num_of_args > 2) {
+    std::cerr << "smash error: cd: too many arguments\n";
+  }
+  char* current_path = getcwd(NULL, 0);
+  if(current_path == NULL) {
+    perror("smash error: getcwd failed");
+    return;
+  }
+  if(strcmp(args[1], "-") == 0) {
+    if(*plastPwd == NULL) {
+    }
+    else {
+      int success = chdir(*plastPwd);
+      if(success != 0) {
+        perror("smash error: chdir failed");
+        return;
+      }
+    }
+  } 
+  else {
+    int success = chdir(args[1]);
+    if(success != 0) {
+      perror("smash error: chdir failed");
+      return;
+    }
+  }
+  free(*plastPwd);
+  *plastPwd = current_path;
+}
+
+/** QUIT **/
+QuitCommand::QuitCommand(const char* cmd_line, JobsList* jobs) : BuiltInCommand(cmd_line) {}
+
+void QuitCommand::execute() {
+  exit(0);  // temporary
 }
