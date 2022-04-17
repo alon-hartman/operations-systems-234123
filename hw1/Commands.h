@@ -15,8 +15,11 @@ class Command {
   int num_of_args;
 
  public:
-  const char* cmd_line;
-  Command(const char* cmd_line);
+  const char* cmd_line_const;
+  char* cmd_line;
+  bool is_in_bg;
+  pid_t child_pid;
+  Command(const char* cmd_line, bool ignore_ampersand=false);
   virtual ~Command() {};
   virtual void execute() = 0;
   //virtual void prepare();
@@ -27,15 +30,13 @@ class Command {
 
 class BuiltInCommand : public Command {
  public:
-  BuiltInCommand(const char* cmd_line) : Command(cmd_line) {};
+  BuiltInCommand(const char* cmd_line) : Command(cmd_line, true) {};
   virtual ~BuiltInCommand() {
     cleanArgsArray();
   }
 };
 
 class ExternalCommand : public Command {
- private:
-  bool is_in_bg;
  public:
   ExternalCommand(const char* cmd_line);
   virtual ~ExternalCommand() {
@@ -122,6 +123,9 @@ class JobsList {
      return this->job_id == other.job_id;
    }
    JobEntry(Command* cmd, bool isStopped, int job_id);
+   JobEntry(const JobEntry& other);
+   JobEntry& operator=(const JobEntry& other);
+   JobEntry(JobEntry&& other);
    ~JobEntry();
    static bool StoppedLessThan(JobEntry& a, JobEntry& b) {
      return a.job_id * a.is_stopped < b.job_id * b.is_stopped;
@@ -138,8 +142,8 @@ class JobsList {
   std::vector<JobEntry> jobs_vec;
 
  public:
-  JobsList() : jobs_vec() {};
-  ~JobsList();
+  JobsList() : jobs_vec() {}
+  ~JobsList() {};
   int getMaxJobID();
   void addJob(Command* cmd, bool isStopped = false);
   void printJobsList();
@@ -154,6 +158,8 @@ class JobsList {
 
 class JobsCommand : public BuiltInCommand {
  // TODO: Add your data members
+ private:
+  JobsList* job_list;
  public:
   JobsCommand(const char* cmd_line, JobsList* jobs);
   virtual ~JobsCommand() {}
@@ -162,6 +168,8 @@ class JobsCommand : public BuiltInCommand {
 
 class KillCommand : public BuiltInCommand {
  // TODO: Add your data members
+ private:
+  JobsList* job_list;
  public:
   KillCommand(const char* cmd_line, JobsList* jobs);
   virtual ~KillCommand() {}
@@ -204,10 +212,12 @@ class SmallShell {
   // TODO: Add your data members
   // char* args[COMMAND_MAX_ARGS];
   char* last_path;
+  JobsList job_list;
 
   SmallShell();
   // void cleanArgsArray();
  public:
+  Command* foreground_cmd;
   std::string prompt;
   Command *CreateCommand(const char* cmd_line);
   SmallShell(SmallShell const&)      = delete; // disable copy ctor
@@ -220,7 +230,12 @@ class SmallShell {
   }
   ~SmallShell();
   void executeCommand(const char* cmd_line);
-  // TODO: add extra methods as needed
+  JobsList::JobEntry* getJobById(int job_id) {
+    return job_list.getJobById(job_id);
+  }
+  void moveToBackground(Command* cmd, bool is_stopped=false) {
+    job_list.addJob(cmd, is_stopped);
+  }
 };
 
 #endif //SMASH_COMMAND_H_
