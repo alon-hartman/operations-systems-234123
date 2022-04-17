@@ -178,6 +178,8 @@ class KillCommand : public BuiltInCommand {
 
 class ForegroundCommand : public BuiltInCommand {
  // TODO: Add your data members
+ private:
+  JobsList* job_list;
  public:
   ForegroundCommand(const char* cmd_line, JobsList* jobs);
   virtual ~ForegroundCommand() {}
@@ -218,6 +220,7 @@ class SmallShell {
   // void cleanArgsArray();
  public:
   Command* foreground_cmd;
+  int foreground_jobid;
   std::string prompt;
   Command *CreateCommand(const char* cmd_line);
   SmallShell(SmallShell const&)      = delete; // disable copy ctor
@@ -236,6 +239,6 @@ class SmallShell {
   void moveToBackground(Command* cmd, bool is_stopped=false) {
     job_list.addJob(cmd, is_stopped);
   }
+  // pid_t removeFromJobList(int job_id = -1);
 };
-
 #endif //SMASH_COMMAND_H_

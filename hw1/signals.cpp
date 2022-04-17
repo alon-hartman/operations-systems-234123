@@ -11,13 +11,14 @@ void ctrlZHandler(int sig_num) {
   SmallShell& shell = SmallShell::getInstance();
   if(shell.foreground_cmd != nullptr) {
     int success = kill(shell.foreground_cmd->child_pid, sig_num);
-    std::cout<< "sig number: "<< sig_num <<endl;
     if(success == -1){
       perror("smash error: kill failed\n");
       return;
     }
+    std::cout << shell.foreground_cmd->child_pid << ", " << shell.foreground_cmd << ", " << shell.foreground_jobid << "\n";
     shell.moveToBackground(shell.foreground_cmd, true);
     shell.foreground_cmd = nullptr;
+    shell.foreground_jobid = -1;
   }
 }
 
@@ -27,7 +28,6 @@ void ctrlCHandler(int sig_num) {
   SmallShell& shell = SmallShell::getInstance();
   if(shell.foreground_cmd != nullptr) {
     int success = kill(shell.foreground_cmd->child_pid, sig_num);
-    std::cout<< "sig number: "<< sig_num <<endl;
     if(success == -1){
       perror("smash error: kill failed\n");
       return;
