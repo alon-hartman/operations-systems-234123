@@ -38,37 +38,36 @@ class Command {
 class BuiltInCommand : public Command {
  public:
   BuiltInCommand(const char* cmd_line) : Command(cmd_line, true) {};
-  // virtual ~BuiltInCommand() {
-  //   cleanArgsArray();
-  // }
 };
 
 class ExternalCommand : public Command {
  public:
   ExternalCommand(const char* cmd_line);
-  // virtual ~ExternalCommand() {
-  //   cleanArgsArray();
-  // }
   void execute() override;
 };
 
 class PipeCommand : public Command {
   // TODO: Add your data members
+  std::string cmd1;
+  std::string cmd2;
+  int fd[2];
+  bool redir_err;
  public:
   PipeCommand(const char* cmd_line);
   virtual ~PipeCommand() {};
   void execute() override;
+  void prepare() override;
+  void cleanup() override;
 };
 
 class RedirectionCommand : public Command {
- // TODO: Add your data members
   std::string cmd;
   std::string file_path;
   int new_file_descriptor;
   bool append;
  public:
   explicit RedirectionCommand(const char* cmd_line);
-  virtual ~RedirectionCommand() {};
+  virtual ~RedirectionCommand() {}
   void execute() override;
   void prepare() override;
   void cleanup() override;
@@ -79,7 +78,7 @@ class ChangePromptCommand : public BuiltInCommand {
   std::string* prompt;
  public:
   ChangePromptCommand(const char* cmd_line, std::string* prompt);
-  virtual ~ChangePromptCommand() {};
+  virtual ~ChangePromptCommand() {}
   void execute() override;
 };
 
@@ -88,15 +87,14 @@ class ChangeDirCommand : public BuiltInCommand {
   char** plastPwd;
  public:
   ChangeDirCommand(const char* cmd_line, char** plastPwd);
-  virtual ~ChangeDirCommand() {};
+  virtual ~ChangeDirCommand() {}
   void execute() override;
 };
 
 class GetCurrDirCommand : public BuiltInCommand {
-  // const char* path;
  public:
   GetCurrDirCommand(const char* cmd_line);
-  virtual ~GetCurrDirCommand() {};
+  virtual ~GetCurrDirCommand() {}
   void execute() override;
 };
 
@@ -224,17 +222,15 @@ class TouchCommand : public BuiltInCommand {
 
 class SmallShell {
  private:
-  // TODO: Add your data members
-  // char* args[COMMAND_MAX_ARGS];
   char* last_path;
   JobsList job_list;
 
   SmallShell();
-  // void cleanArgsArray();
  public:
   Command* foreground_cmd;
   int foreground_jobid;
   std::string prompt;
+  pid_t smash_pid;
   Command *CreateCommand(const char* cmd_line);
   SmallShell(SmallShell const&)      = delete; // disable copy ctor
   void operator=(SmallShell const&)  = delete; // disable = operator

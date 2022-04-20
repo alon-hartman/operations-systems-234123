@@ -25,6 +25,12 @@ using namespace std;
 #define FUNC_EXIT()
 #endif
 
+#define STDIN 0
+#define STDOUT 1
+#define STDERR 2
+#define PIPE_RD 0
+#define PIPE_WR 1
+
 const std::string WHITESPACE = " \n\r\t\f\v";
 
 string _ltrim(const std::string& s)
@@ -88,7 +94,7 @@ bool is_digits(const std::string &str){
 
 // TODO: Add your implementation for classes in Commands.h 
 
-SmallShell::SmallShell() : last_path(NULL), job_list(), foreground_cmd(nullptr), foreground_jobid(-1), prompt("smash> ") {
+SmallShell::SmallShell() : last_path(NULL), job_list(), foreground_cmd(nullptr), foreground_jobid(-1), prompt("smash> "), smash_pid(getpid()) {
 // TODO: add your implementation
 }
 
@@ -104,8 +110,11 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
   string cmd_s = _trim(string(cmd_line));
   string firstWord = cmd_s.substr(0, cmd_s.find_first_of(" \n"));
 
-  if(cmd_s.find(">") != std::string::npos){
+  if(cmd_s.find(">") != std::string::npos) {
     return new RedirectionCommand(cmd_line);
+  }
+  else if(cmd_s.find("|") != std::string::npos) {
+    return new PipeCommand(cmd_line);
   }
   else if (firstWord.compare("pwd") == 0) {
     return new GetCurrDirCommand(cmd_line);
@@ -207,7 +216,7 @@ void GetCurrDirCommand::execute() {
 ShowPidCommand::ShowPidCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {}
 
 void ShowPidCommand::execute() {
-  std::cout << "smash pid is: " << getpid() << "\n";
+  std::cout << "smash pid is: " << (SmallShell::getInstance()).smash_pid << "\n";
 }
 
 /** CD **/
@@ -347,7 +356,7 @@ void BackgroundCommand::execute() {
     if(job_id == 0) {
       std::cerr << "smash error: bg: there is no stopped jobs to resume\n";
       return;
-    }//sigcont - remove from list - wait
+    }
   }
   else if(num_of_args == 2) {
     job_id = atoi(args[1]);
@@ -607,7 +616,7 @@ RedirectionCommand::RedirectionCommand(const char* cmd_line) : Command(cmd_line,
 }
 
 void RedirectionCommand::prepare() {
-  new_file_descriptor = dup(1);
+  new_file_descriptor = dup(STDOUT);
   if(new_file_descriptor == -1) {
     perror("smash error: dup failed");
   }
@@ -627,7 +636,7 @@ void RedirectionCommand::prepare() {
 }
 
 void RedirectionCommand::cleanup() {
-  if(dup2(new_file_descriptor, 1) == -1) {  // returns stdout to channel 1
+  if(dup2(new_file_descriptor, STDOUT) == -1) {  // returns stdout to channel 1
     perror("smash error: dup2 failed");
   }
   if(close(new_file_descriptor) == -1) {
@@ -640,4 +649,67 @@ void RedirectionCommand::execute() {
   SmallShell& smash = SmallShell::getInstance();
   smash.executeCommand(cmd.c_str());
   cleanup();
+}
+
+/** PIPE **/
+PipeCommand::PipeCommand(const char* cmd_line) : Command(cmd_line, true), redir_err(false) {
+  std::string cmd_line_s = std::string(cmd_line);
+  int pipe_index = cmd_line_s.find_first_of("|");
+  if(cmd_line_s[pipe_index+1] == '&') {
+    this->redir_err = true;  
+ //   std::cout << "redirection = true" << endl;
+  }
+  int cmd2_start = pipe_index + (redir_err == true ? 2 : 1);
+  cmd1 = string(cmd_line_s.begin(), cmd_line_s.begin()+pipe_index);
+  cmd2 = string(cmd_line_s.begin()+cmd2_start, cmd_line_s.end());
+
+  auto it = cmd1.find_last_of('&');
+  if(it != std::string::npos) {
+    cmd1.erase(it);  // removes background sign for first command
+  }
+  it = cmd2.find_last_of('&');
+  if(it != std::string::npos) {
+    cmd2.erase(it);  // removes background sign for second command
+  }
+}
+void PipeCommand::prepare() {
+}
+
+void PipeCommand::cleanup(){
+  
+}
+void PipeCommand::execute(){
+  pipe(fd);  // fd[0]: read, fd[1]: write
+  SmallShell& smash = SmallShell::getInstance();
+  int left_command = fork();
+  if(left_command == 0) {
+    // first chiild - left command (close read, open write)
+    setpgrp();
+    if(redir_err == true) {
+      dup2(fd[PIPE_WR], STDERR);
+    }
+    else {
+      dup2(fd[PIPE_WR], STDOUT);
+    }
+    close(fd[0]);
+    close(fd[1]);
+    //execv
+    smash.executeCommand(cmd1.c_str());
+    exit(0);
+  }
+  int right_command = fork();
+  if(right_command == 0) {
+    // second child - right command (open read, close write)
+    setpgrp();
+    dup2(fd[PIPE_RD], STDIN);
+    close(fd[0]);
+    close(fd[1]);
+    //execv
+    smash.executeCommand(cmd2.c_str());
+    exit(0);
+  }
+  close(fd[0]);
+  close(fd[1]);
+  waitpid(left_command, NULL, 0);
+  waitpid(right_command, NULL, 0);
 }
