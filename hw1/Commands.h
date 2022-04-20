@@ -20,28 +20,35 @@ class Command {
   bool is_in_bg;
   pid_t child_pid;
   Command(const char* cmd_line, bool ignore_ampersand=false);
-  virtual ~Command() {};
+  virtual ~Command() {
+  for(int i=0; i<COMMAND_MAX_ARGS; ++i) {
+    if(args[i] == nullptr)
+      return;
+    free(args[i]);
+  }
+    delete[] cmd_line;
+  };
   virtual void execute() = 0;
-  //virtual void prepare();
-  //virtual void cleanup();
+  virtual void prepare();
+  virtual void cleanup();
   // TODO: Add your extra methods if needed
-  virtual void cleanArgsArray();
+  // virtual void cleanArgsArray();
 };
 
 class BuiltInCommand : public Command {
  public:
   BuiltInCommand(const char* cmd_line) : Command(cmd_line, true) {};
-  virtual ~BuiltInCommand() {
-    cleanArgsArray();
-  }
+  // virtual ~BuiltInCommand() {
+  //   cleanArgsArray();
+  // }
 };
 
 class ExternalCommand : public Command {
  public:
   ExternalCommand(const char* cmd_line);
-  virtual ~ExternalCommand() {
-    cleanArgsArray();
-  }
+  // virtual ~ExternalCommand() {
+  //   cleanArgsArray();
+  // }
   void execute() override;
 };
 
@@ -49,18 +56,22 @@ class PipeCommand : public Command {
   // TODO: Add your data members
  public:
   PipeCommand(const char* cmd_line);
-  virtual ~PipeCommand() {}
+  virtual ~PipeCommand() {};
   void execute() override;
 };
 
 class RedirectionCommand : public Command {
  // TODO: Add your data members
+  std::string cmd;
+  std::string file_path;
+  int new_file_descriptor;
+  bool append;
  public:
   explicit RedirectionCommand(const char* cmd_line);
-  virtual ~RedirectionCommand() {}
+  virtual ~RedirectionCommand() {};
   void execute() override;
-  //void prepare() override;
-  //void cleanup() override;
+  void prepare() override;
+  void cleanup() override;
 };
 
 class ChangePromptCommand : public BuiltInCommand {
@@ -98,8 +109,8 @@ class ShowPidCommand : public BuiltInCommand {
 
 class JobsList;
 class QuitCommand : public BuiltInCommand {
-// TODO: Add your data members public:
- public:  // was private initialy 
+ public:
+  JobsList* job_list;
   QuitCommand(const char* cmd_line, JobsList* jobs);
   virtual ~QuitCommand() {}
   void execute() override;
@@ -114,7 +125,7 @@ class JobsList {
    int job_id;
    pid_t pid;
    time_t start_time;
-   char* cmd_line;
+   std::string cmd_line;
    bool is_stopped;
    bool operator<(JobEntry& other) {
     return this->job_id < other.job_id;
@@ -125,7 +136,7 @@ class JobsList {
    JobEntry(Command* cmd, bool isStopped, int job_id);
    JobEntry(const JobEntry& other);
    JobEntry& operator=(const JobEntry& other);
-   JobEntry(JobEntry&& other);
+   JobEntry(JobEntry&& other); //R value constructor
    ~JobEntry();
    static bool StoppedLessThan(JobEntry& a, JobEntry& b) {
      return a.job_id * a.is_stopped < b.job_id * b.is_stopped;
@@ -143,7 +154,7 @@ class JobsList {
 
  public:
   JobsList() : jobs_vec() {}
-  ~JobsList() {};
+  // ~JobsList() {};
   int getMaxJobID();
   void addJob(Command* cmd, bool isStopped = false);
   void printJobsList();
@@ -188,6 +199,8 @@ class ForegroundCommand : public BuiltInCommand {
 
 class BackgroundCommand : public BuiltInCommand {
  // TODO: Add your data members
+ private:
+  JobsList* job_list;
  public:
   BackgroundCommand(const char* cmd_line, JobsList* jobs);
   virtual ~BackgroundCommand() {}
@@ -238,6 +251,7 @@ class SmallShell {
   }
   void moveToBackground(Command* cmd, bool is_stopped=false) {
     job_list.addJob(cmd, is_stopped);
+    // std::cout << "???3\n";
   }
   // pid_t removeFromJobList(int job_id = -1);
 };
