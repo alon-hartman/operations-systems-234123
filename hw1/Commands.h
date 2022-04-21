@@ -56,8 +56,6 @@ class PipeCommand : public Command {
   PipeCommand(const char* cmd_line);
   virtual ~PipeCommand() {};
   void execute() override;
-  void prepare() override;
-  void cleanup() override;
 };
 
 class RedirectionCommand : public Command {

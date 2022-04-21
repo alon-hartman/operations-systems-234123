@@ -143,6 +143,9 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
   else if(firstWord.compare("bg") == 0){
     return new BackgroundCommand(cmd_line, &job_list);
   }
+  else if(firstWord.compare("tail") == 0){
+    return new TailCommand(cmd_line);
+  }
 
   else {
     return new ExternalCommand(cmd_line);
@@ -323,7 +326,7 @@ void ForegroundCommand::execute() {
 
   if(job->is_stopped == true) {
     if(kill(job->pid, SIGCONT) == -1){
-      perror("smash error: kill failed\n");
+      perror("smash error: kill failed");
     }
     job->is_stopped = false;
   }
@@ -376,12 +379,12 @@ void BackgroundCommand::execute() {
   }
   std::cout << job->cmd_line << " : " << job->pid << "\n";
   if(kill(job->pid, SIGCONT) == -1) {
-    perror("smash error: kill failed\n");
+    perror("smash error: kill failed");
     return;
   }
   job->is_stopped = false;
 }
-// }
+
 /** QUIT **/
 QuitCommand::QuitCommand(const char* cmd_line, JobsList* jobs) : BuiltInCommand(cmd_line), job_list(jobs) {}
 
@@ -391,6 +394,87 @@ void QuitCommand::execute() {
     if(arg.compare("kill") == 0) {
       job_list->killAllJobs();
     }
+  }
+}
+
+/** TAIL **/
+TailCommand::TailCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {}
+
+void TailCommand::execute() {
+  int N = 10, readerr, writeerr;
+  std::string file_path;
+  if(num_of_args == 2) {
+    file_path = args[1];
+  }
+  else if(num_of_args == 3) {
+    N = std::abs(atoi(args[1]));
+    if(std::string(args[1]).rfind("--", 0) == 0) {
+      std::cerr << "smash error: fg: invalid arguments\n";
+      return;
+    }
+    file_path = args[2];
+  }
+  else {
+    std::cerr << "smash error: fg: invalid arguments\n";
+    return;
+  }
+
+  int fd = open(_trim(file_path).c_str(), 0);
+  if(fd == -1) {
+    perror("smash error: open failed");
+    return;
+  }
+  int end_offset = lseek(fd, -1, SEEK_END) + 1;
+  if(end_offset == -1) {
+    perror("smash error: seeker failed");
+    return;
+  }
+  int seeker = end_offset-1;
+
+  char c = '\0';
+  while(N > 0 && seeker != 0) {  // exit if reached start of file
+    readerr = read(fd, &c, 1);
+    if(readerr == -1){
+      perror("smash error: read failed");
+      return;
+    }
+    else if(readerr == 0) { //might happen when reading from pipe
+      continue;
+    }
+    if(c == '\n') {
+      N--;
+      if(N == 0) break;
+    }
+    seeker = lseek(fd, seeker-1, SEEK_SET);
+    if(seeker == -1) {
+      perror("smash error: seek failed");
+      return;
+    }
+  }
+  if(seeker != 0) {
+    seeker++;  // seek next character after the N+1 '\n'
+  }
+  int buf_size = std::min(256, end_offset-seeker);
+  void* buf[buf_size];
+  do {
+    readerr = read(fd, buf, buf_size);
+    // validations
+    if(readerr == -1) {
+      perror("smash error: read failed");
+      return;
+    }
+    writeerr = write(STDOUT, buf, readerr);
+    // validations
+    if(writeerr == -1) {
+      perror("smash error: write failed");
+      return;
+    }
+  }
+  while(readerr > 0);
+
+  if(close(fd) == -1) {
+    perror("smash error: close failed");
+    return;
   }
 }
 
@@ -672,12 +756,7 @@ PipeCommand::PipeCommand(const char* cmd_line) : Command(cmd_line, true), redir_
     cmd2.erase(it);  // removes background sign for second command
   }
 }
-void PipeCommand::prepare() {
-}
 
-void PipeCommand::cleanup(){
-  
-}
 void PipeCommand::execute(){
   pipe(fd);  // fd[0]: read, fd[1]: write
   SmallShell& smash = SmallShell::getInstance();
