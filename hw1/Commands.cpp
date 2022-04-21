@@ -146,6 +146,9 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
   else if(firstWord.compare("tail") == 0){
     return new TailCommand(cmd_line);
   }
+  else if(firstWord.compare("touch") == 0){
+    return new TouchCommand(cmd_line);
+  }
 
   else {
     return new ExternalCommand(cmd_line);
@@ -478,6 +481,40 @@ void TailCommand::execute() {
   }
 }
 
+/* TOUCH */
+TouchCommand::TouchCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {}
+
+void TouchCommand::execute() {
+  if(num_of_args != 3) {
+    std::cerr << "smash error: touch: invalid arguments\n";
+    return;
+  }
+  std::string timestamp = args[2];
+  struct tm timeptr;
+  size_t lpos = 0, rpos = timestamp.find_first_of(":");
+  timeptr.tm_sec = atoi(timestamp.substr(lpos, rpos).c_str());
+  lpos = rpos+1;
+  rpos = timestamp.find_first_of(":", lpos);
+  timeptr.tm_min = atoi(timestamp.substr(lpos, rpos).c_str());
+  lpos = rpos+1;
+  rpos = timestamp.find_first_of(":", lpos);
+  timeptr.tm_hour = atoi(timestamp.substr(lpos, rpos).c_str());
+  lpos = rpos+1;
+  rpos = timestamp.find_first_of(":", lpos);
+  timeptr.tm_mday = atoi(timestamp.substr(lpos, rpos).c_str());
+  lpos = rpos+1;
+  rpos = timestamp.find_first_of(":", lpos);
+  timeptr.tm_mon = atoi(timestamp.substr(lpos, rpos).c_str()) - 1;
+  lpos = rpos+1;
+  rpos = timestamp.find_first_of(":", lpos);
+  timeptr.tm_year = atoi(timestamp.substr(lpos, timestamp.size()+1).c_str()) - 1900; 
+  timeptr.tm_isdst = true;
+  time_t epoch_time = mktime(&timeptr);
+  struct utimbuf timestruct {epoch_time, epoch_time};
+  if(utime(args[1], &timestruct) == -1) {
+    perror("smash error: utime failed");
+  }
+}
 /**************************************************************************************************************/
 /**************************************************************************************************************/
 /*********************************************EXTERNAL COMMANDS************************************************/
