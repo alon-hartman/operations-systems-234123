@@ -9,7 +9,6 @@
 #define COMMAND_MAX_ARGS (20)
 
 class Command {
-// TODO: Add your data members
  protected:
   char* args[COMMAND_MAX_ARGS];
   int num_of_args;
@@ -31,8 +30,6 @@ class Command {
   virtual void execute() = 0;
   virtual void prepare();
   virtual void cleanup();
-  // TODO: Add your extra methods if needed
-  // virtual void cleanArgsArray();
 };
 
 class BuiltInCommand : public Command {
@@ -47,7 +44,6 @@ class ExternalCommand : public Command {
 };
 
 class PipeCommand : public Command {
-  // TODO: Add your data members
   std::string cmd1;
   std::string cmd2;
   int fd[2];
@@ -132,7 +128,7 @@ class JobsList {
    JobEntry(Command* cmd, bool isStopped, int job_id);
    JobEntry(const JobEntry& other);
    JobEntry& operator=(const JobEntry& other);
-   JobEntry(JobEntry&& other); //R value constructor
+   JobEntry(JobEntry&& other); // move constructor
    ~JobEntry();
    static bool StoppedLessThan(JobEntry& a, JobEntry& b) {
      return a.job_id * a.is_stopped < b.job_id * b.is_stopped;
@@ -145,12 +141,10 @@ class JobsList {
      }
    };
   };
- // TODO: Add your data members
   std::vector<JobEntry> jobs_vec;
 
  public:
   JobsList() : jobs_vec() {}
-  // ~JobsList() {};
   int getMaxJobID();
   void addJob(Command* cmd, bool isStopped = false);
   void printJobsList();
@@ -160,11 +154,9 @@ class JobsList {
   void removeJobById(int jobId); 
   JobEntry * getLastJob(int* lastJobId);
   JobEntry *getLastStoppedJob(int *jobId);
-  // TODO: Add extra methods or modify exisitng ones as needed
 };
 
 class JobsCommand : public BuiltInCommand {
- // TODO: Add your data members
  private:
   JobsList* job_list;
  public:
@@ -174,7 +166,6 @@ class JobsCommand : public BuiltInCommand {
 };
 
 class KillCommand : public BuiltInCommand {
- // TODO: Add your data members
  private:
   JobsList* job_list;
  public:
@@ -184,7 +175,6 @@ class KillCommand : public BuiltInCommand {
 };
 
 class ForegroundCommand : public BuiltInCommand {
- // TODO: Add your data members
  private:
   JobsList* job_list;
  public:
@@ -194,7 +184,6 @@ class ForegroundCommand : public BuiltInCommand {
 };
 
 class BackgroundCommand : public BuiltInCommand {
- // TODO: Add your data members
  private:
   JobsList* job_list;
  public:
@@ -245,8 +234,6 @@ class SmallShell {
   }
   void moveToBackground(Command* cmd, bool is_stopped=false) {
     job_list.addJob(cmd, is_stopped);
-    // std::cout << "???3\n";
   }
-  // pid_t removeFromJobList(int job_id = -1);
 };
-#endif //SMASH_COMMAND_H_
+#endif

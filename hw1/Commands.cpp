@@ -92,16 +92,9 @@ bool is_digits(const std::string &str){
   return str.find_first_not_of("0123456789") == std::string::npos;
 }
 
-// TODO: Add your implementation for classes in Commands.h 
+SmallShell::SmallShell() : last_path(NULL), job_list(), foreground_cmd(nullptr), foreground_jobid(-1), prompt("smash> "), smash_pid(getpid()) {}
 
-SmallShell::SmallShell() : last_path(NULL), job_list(), foreground_cmd(nullptr), foreground_jobid(-1), prompt("smash> "), smash_pid(getpid()) {
-// TODO: add your implementation
-}
-
-SmallShell::~SmallShell() {
-// TODO: add your implementation
-  // free(last_path);
-}
+SmallShell::~SmallShell() {}
 
 /**
 * Creates and returns a pointer to Command class which matches the given command line (cmd_line)
@@ -157,8 +150,7 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
 }
 
 void SmallShell::executeCommand(const char *cmd_line) {
-  // TODO: Add your implementation here
-  // for example:
+
   Command* cmd = CreateCommand(cmd_line);
   if(cmd) {
     job_list.removeFinishedJobs();
@@ -167,11 +159,9 @@ void SmallShell::executeCommand(const char *cmd_line) {
     if(dynamic_cast<QuitCommand*>(cmd)) {
       delete cmd;
       free(last_path);
-      // job_list.~JobsList();
       exit(0);
     }
   }
-  // Please note that you must fork smash process for some commands (e.g., external commands....)
   delete cmd;
 }
 
@@ -188,8 +178,9 @@ Command::Command(const char* cmd_line_const, bool ignore_ampersand) : cmd_line_c
     num_of_args = _parseCommandLine(cmd_line, args);
   };
 
-void Command::prepare() {}  
+void Command::prepare() {}
 void Command::cleanup() {}
+
 /**************************************************************************************************************/
 /**************************************************************************************************************/
 /*********************************************INTERNAL COMMANDS************************************************/
@@ -205,6 +196,7 @@ void ChangePromptCommand::execute() {
     *prompt = args[1] + string("> ");
   }
 }
+
 /** PWD **/
 GetCurrDirCommand::GetCurrDirCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {}
 
@@ -269,6 +261,7 @@ void JobsCommand::execute() {
 
 /** KILL **/
 KillCommand::KillCommand(const char* cmd_line, JobsList* jobs) : BuiltInCommand(cmd_line), job_list(jobs) {}
+
 void KillCommand::execute() {
   if(num_of_args != 3) {
     std::cerr << "smash error: kill: invalid arguments" << endl;
@@ -291,7 +284,7 @@ void KillCommand::execute() {
     perror("smash error: kill failed");
     return;
   }
-  if(signal == SIGCONT){
+  if(signal == SIGCONT) {
     job->is_stopped = false;
   }
   else if(signal == SIGSTOP) {
@@ -312,7 +305,7 @@ void ForegroundCommand::execute() {
     if(job_id == 0) {
       std::cerr << "smash error: fg: jobs list is empty\n";
       return;
-    }//sigcont - remove from list - wait
+    }
   }
   else if(num_of_args == 2) {
     job_id = atoi(args[1]);
@@ -335,7 +328,7 @@ void ForegroundCommand::execute() {
   }
   string temp = std::move(job->cmd_line);
   ExternalCommand ecmd = ExternalCommand(temp.c_str());
-  smash.foreground_cmd = &ecmd;//new ExternalCommand(job->cmd_line); 
+  smash.foreground_cmd = &ecmd;
   smash.foreground_cmd->child_pid = job->pid;
   smash.foreground_jobid = job->job_id;
   std::cout << smash.foreground_cmd->cmd_line_const << " : " << job->pid << "\n";
@@ -347,7 +340,6 @@ void ForegroundCommand::execute() {
     success = waitpid(smash.foreground_cmd->child_pid, &status, WNOHANG | WUNTRACED | WCONTINUED);
   } while(success == 0 || (success > 0 && WIFEXITED(status) == 0 && WIFCONTINUED(status) == 1));
   std:: cout << WIFEXITED(status) << ", " << WIFSTOPPED(status) << ", " << WIFCONTINUED(status) << "\n";
-  // free(smash.foreground_cmd);
   smash.foreground_cmd = nullptr;
   smash.foreground_jobid = -1;
 }
@@ -435,7 +427,7 @@ void TailCommand::execute() {
   int seeker = end_offset-1;
 
   char c = '\0';
-  while(N > 0 && seeker != 0) {  // exit if reached start of file
+  while(seeker != 0) {  // exit if reached start of file
     readerr = read(fd, &c, 1);
     if(readerr == -1){
       perror("smash error: read failed");
@@ -461,13 +453,11 @@ void TailCommand::execute() {
   void* buf[buf_size];
   do {
     readerr = read(fd, buf, buf_size);
-    // validations
     if(readerr == -1) {
       perror("smash error: read failed");
       return;
     }
     writeerr = write(STDOUT, buf, readerr);
-    // validations
     if(writeerr == -1) {
       perror("smash error: write failed");
       return;
@@ -491,7 +481,7 @@ void TouchCommand::execute() {
   }
   std::string timestamp = args[2];
   struct tm timeptr;
-  size_t lpos = 0, rpos = timestamp.find_first_of(":");
+  size_t lpos = 0, rpos = timestamp.find_first_of(":");  // stupid code but w/e
   timeptr.tm_sec = atoi(timestamp.substr(lpos, rpos).c_str());
   lpos = rpos+1;
   rpos = timestamp.find_first_of(":", lpos);
@@ -548,7 +538,6 @@ void ExternalCommand::execute() {
       do {
         success = waitpid(pid, &status, WNOHANG | WUNTRACED | WCONTINUED);
       } while(success == 0);
-      // std:: cout << WIFEXITED(status) << ", " << WIFSTOPPED(status) << "\n";
       smash.foreground_cmd = nullptr;
       if(success == -1) {
         perror("smash error: waitpid failed");
@@ -573,62 +562,50 @@ JobsList::JobEntry::JobEntry(Command* cmd, bool isStopped, int job_id)
       if(pid == -1) {
         // should never happen
         std::cout << "command is not a child proccess but is still in the jobs list\n";
-        // perror("smash error: getpid failed");
       }
-      // strcpy(this->cmd_line, cmd->cmd_line_const);
     }
 
 JobsList::JobEntry::JobEntry(const JobsList::JobEntry& other) {
   job_id = other.job_id;
   pid = other.pid;
   start_time = other.start_time;
-  // cmd_line = new char[strlen(other.cmd_line)+1];
   cmd_line = other.cmd_line;
-  // strcpy(this->cmd_line, other.cmd_line);
   is_stopped = other.is_stopped;
 }
+
 JobsList::JobEntry& JobsList::JobEntry::operator=(const JobsList::JobEntry& other) {
   if (this == &other)
     return *this;
   job_id = other.job_id;
   pid = other.pid;
   start_time = other.start_time;
-  // delete[] cmd_line;
-  // cmd_line = new char[strlen(other.cmd_line)+1];
   cmd_line = other.cmd_line;
-  // strcpy(this->cmd_line, other.cmd_line);
   is_stopped = other.is_stopped;
   return *this;
 }
 
 JobsList::JobEntry::JobEntry(JobsList::JobEntry&& other) {
-  // cout << "moved!\n";
   job_id = other.job_id;
   pid = other.pid;
   start_time = other.start_time;
   cmd_line = std::move(other.cmd_line);
-  // other.cmd_line = nullptr;
   is_stopped = other.is_stopped;
 }
 
-JobsList::JobEntry::~JobEntry() {
-  // delete[] cmd_line;
-}
+JobsList::JobEntry::~JobEntry() {}
+
 /** JOB_LIST **/
 int JobsList::getMaxJobID() {
   if(jobs_vec.empty()){
     return 0;
   }
     return std::max_element(jobs_vec.begin(), jobs_vec.end())->job_id;
-    // return getLastJob()->job_id;
 }
 
 void JobsList::addJob(Command* cmd, bool isStopped) {
   this->removeFinishedJobs();
   SmallShell& smash = SmallShell::getInstance();
   int job_id = (smash.foreground_jobid == -1) ? getMaxJobID()+1 : smash.foreground_jobid;
-  // JobEntry job(cmd, isStopped, job_id);
-  // jobs_vec.push_back(std::move(job));
   jobs_vec.push_back(JobEntry(cmd, isStopped, job_id));
 }
 
@@ -647,7 +624,7 @@ void JobsList::printJobsList() {
 }
 void JobsList::killAllJobs() {
   std::sort(jobs_vec.begin(), jobs_vec.end());
-  std::cout << "sending SIGKILL signal to " << jobs_vec.size() << " jobs:\n";
+  std::cout << "smash: sending SIGKILL signal to " << jobs_vec.size() << " jobs:\n";
   for(auto it = jobs_vec.begin(); it != jobs_vec.end(); ++it) {
     std::cout << it->pid << ": " << it->cmd_line << endl;
     int success = kill(it->pid, SIGKILL);
@@ -683,7 +660,6 @@ JobsList::JobEntry* JobsList::getJobById(int jobId) {
   return &*it;
 }
 
-//simply remove the job from the vector(no signals sent)
 void JobsList::removeJobById(int jobId) {
   for(auto it = jobs_vec.begin(); it != jobs_vec.end(); ++it) {
     if(it->job_id == jobId) {
@@ -695,7 +671,6 @@ void JobsList::removeJobById(int jobId) {
 
 JobsList::JobEntry* JobsList::getLastJob(int* lastJobId) {
   auto it = std::max_element(jobs_vec.begin(), jobs_vec.end());
-  // JobEntry* job = &*std::max_element(jobs_vec.begin(), jobs_vec.end());
   if(it == jobs_vec.end()) {
     *lastJobId = 0;
     return nullptr;
@@ -778,7 +753,6 @@ PipeCommand::PipeCommand(const char* cmd_line) : Command(cmd_line, true), redir_
   int pipe_index = cmd_line_s.find_first_of("|");
   if(cmd_line_s[pipe_index+1] == '&') {
     this->redir_err = true;  
- //   std::cout << "redirection = true" << endl;
   }
   int cmd2_start = pipe_index + (redir_err == true ? 2 : 1);
   cmd1 = string(cmd_line_s.begin(), cmd_line_s.begin()+pipe_index);
@@ -809,7 +783,6 @@ void PipeCommand::execute(){
     }
     close(fd[0]);
     close(fd[1]);
-    //execv
     smash.executeCommand(cmd1.c_str());
     exit(0);
   }
@@ -820,7 +793,6 @@ void PipeCommand::execute(){
     dup2(fd[PIPE_RD], STDIN);
     close(fd[0]);
     close(fd[1]);
-    //execv
     smash.executeCommand(cmd2.c_str());
     exit(0);
   }
