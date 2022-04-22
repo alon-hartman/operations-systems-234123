@@ -232,6 +232,7 @@ void ChangeDirCommand::execute() {
   }
   if(strcmp(args[1], "-") == 0) {
     if(*plastPwd == NULL) {
+      std::
     }
     else {
       int success = chdir(*plastPwd);
@@ -595,7 +596,7 @@ JobsList::JobEntry::JobEntry(JobsList::JobEntry&& other) {
 JobsList::JobEntry::~JobEntry() {}
 
 /** JOB_LIST **/
-int JobsList::getMaxJobID() {
+int JobsList::getMaxJobID() const {
   if(jobs_vec.empty()){
     return 0;
   }

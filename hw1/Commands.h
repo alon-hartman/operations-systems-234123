@@ -119,10 +119,10 @@ class JobsList {
    time_t start_time;
    std::string cmd_line;
    bool is_stopped;
-   bool operator<(JobEntry& other) {
+   bool operator<(const JobEntry& other) const {
     return this->job_id < other.job_id;
    }
-   bool operator==(JobEntry& other) {
+   bool operator==(const JobEntry& other) const {
      return this->job_id == other.job_id;
    }
    JobEntry(Command* cmd, bool isStopped, int job_id);
@@ -130,13 +130,13 @@ class JobsList {
    JobEntry& operator=(const JobEntry& other);
    JobEntry(JobEntry&& other); // move constructor
    ~JobEntry();
-   static bool StoppedLessThan(JobEntry& a, JobEntry& b) {
+   static bool StoppedLessThan(const JobEntry& a, const JobEntry& b) {
      return a.job_id * a.is_stopped < b.job_id * b.is_stopped;
    }
    struct CompareByJobID {
      int job_id;
      CompareByJobID(int job_id) : job_id(job_id) {}
-     bool operator()(JobEntry& other) {
+     bool operator()(const JobEntry& other) const {
       return job_id == other.job_id;
      }
    };
@@ -145,7 +145,7 @@ class JobsList {
 
  public:
   JobsList() : jobs_vec() {}
-  int getMaxJobID();
+  int getMaxJobID() const;
   void addJob(Command* cmd, bool isStopped = false);
   void printJobsList();
   void killAllJobs();
