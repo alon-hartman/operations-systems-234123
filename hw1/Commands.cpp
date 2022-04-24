@@ -234,6 +234,9 @@ void ChangeDirCommand::execute() {
     std::cerr << "smash error: cd: too many arguments" << endl;
     return;
   }
+  else if(num_of_args == 1) {
+    retur
+  }
   char* current_path = getcwd(NULL, 0);
   if(current_path == NULL) {
     perror("smash error: getcwd failed");
