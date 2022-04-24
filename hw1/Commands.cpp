@@ -181,6 +181,15 @@ Command::Command(const char* cmd_line_const, bool ignore_ampersand) : cmd_line_c
 void Command::prepare() {}
 void Command::cleanup() {}
 
+Command::~Command() {
+  for(int i=0; i<COMMAND_MAX_ARGS; ++i) {
+    if(args[i] == nullptr)
+      return;
+    free(args[i]);
+  }
+  delete[] cmd_line;
+};
+
 /**************************************************************************************************************/
 /**************************************************************************************************************/
 /*********************************************INTERNAL COMMANDS************************************************/
@@ -232,7 +241,7 @@ void ChangeDirCommand::execute() {
   }
   if(strcmp(args[1], "-") == 0) {
     if(*plastPwd == NULL) {
-      std::
+      std::cerr << "smash error: cd: OLDPWD not set" << endl;
     }
     else {
       int success = chdir(*plastPwd);

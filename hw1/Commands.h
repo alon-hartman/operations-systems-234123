@@ -19,14 +19,7 @@ class Command {
   bool is_in_bg;
   pid_t child_pid;
   Command(const char* cmd_line, bool ignore_ampersand=false);
-  virtual ~Command() {
-  for(int i=0; i<COMMAND_MAX_ARGS; ++i) {
-    if(args[i] == nullptr)
-      return;
-    free(args[i]);
-  }
-    delete[] cmd_line;
-  };
+  virtual ~Command();
   virtual void execute() = 0;
   virtual void prepare();
   virtual void cleanup();
@@ -205,6 +198,13 @@ class TouchCommand : public BuiltInCommand {
   virtual ~TouchCommand() {}
   void execute() override;
 };
+
+// class TimeoutCommand : public Command {
+//  public:
+//   TimeoutCommand(const char* cmd_line);
+//   virtual ~TimeoutCommand() {}
+//   void TimeoutCommand() override;
+// };
 
 
 class SmallShell {
