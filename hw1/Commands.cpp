@@ -352,7 +352,6 @@ void ForegroundCommand::execute() {
   do {
     success = waitpid(smash.foreground_cmd->child_pid, &status, WNOHANG | WUNTRACED | WCONTINUED);
   } while(success == 0 || (success > 0 && WIFEXITED(status) == 0 && WIFCONTINUED(status) == 1));
-  std:: cout << WIFEXITED(status) << ", " << WIFSTOPPED(status) << ", " << WIFCONTINUED(status) << "\n";
   smash.foreground_cmd = nullptr;
   smash.foreground_jobid = -1;
 }
