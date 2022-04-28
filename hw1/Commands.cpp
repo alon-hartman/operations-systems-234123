@@ -92,10 +92,41 @@ bool is_digits(const std::string &str){
   return str.find_first_not_of("0123456789") == std::string::npos;
 }
 
-SmallShell::SmallShell() : last_path(NULL), job_list(), foreground_cmd(nullptr), foreground_jobid(-1), prompt("smash> "), smash_pid(getpid()) {}
+SmallShell::SmallShell() : last_path(NULL), job_list(), timed_cmds(), time_this(-1), foreground_cmd(nullptr), 
+                           foreground_jobid(-1), prompt("smash> "), smash_pid(getpid()) {}
 
 SmallShell::~SmallShell() {}
 
+void SmallShell::killTimedCmmands() {
+  auto it = timed_cmds.begin();
+  while(it != timed_cmds.end()) {
+    if(it->pid == -1) {  // ran in foreground in finished
+      it = timed_cmds.erase(it);
+      continue;
+    }
+    int status;
+    int success = waitpid(it->pid, &status, WNOHANG | WUNTRACED | WCONTINUED);
+    if(success > 0) {  // finished
+      if((WIFEXITED(status) || WIFSIGNALED(status)) && !(WIFSTOPPED(status))) {  // terminated reguraly
+        it = timed_cmds.erase(it);
+        continue;
+      }
+    }
+    else if(success == -1) {
+      perror("smash error: waitpid failed");
+    }
+    else if(difftime(time(NULL), it->start_time) >= it->time_to_alarm)  {  // not finished but timed out
+      if(kill(it->pid, SIGKILL) == -1) {
+        perror("smash error: kill failed");
+      return;
+      }
+      std::cout << "smash: " << it->cmd_s << " timed out!\n";
+      it = timed_cmds.erase(it);
+      continue;
+    }
+    ++it;
+  }
+}
 /**
 * Creates and returns a pointer to Command class which matches the given command line (cmd_line)
 */
@@ -127,20 +158,23 @@ Command * SmallShell::CreateCommand(const char* cmd_line) {
   else if (firstWord.compare("jobs") == 0) {
     return new JobsCommand(cmd_line, &job_list);
   }
-  else if(firstWord.compare("kill") == 0){
+  else if(firstWord.compare("kill") == 0) {
     return new KillCommand(cmd_line, &job_list);
   }
-  else if(firstWord.compare("fg") == 0){
+  else if(firstWord.compare("fg") == 0) {
     return new ForegroundCommand(cmd_line, &job_list);
   }
-  else if(firstWord.compare("bg") == 0){
+  else if(firstWord.compare("bg") == 0) {
     return new BackgroundCommand(cmd_line, &job_list);
   }
-  else if(firstWord.compare("tail") == 0){
+  else if(firstWord.compare("tail") == 0) {
     return new TailCommand(cmd_line);
   }
-  else if(firstWord.compare("touch") == 0){
+  else if(firstWord.compare("touch") == 0) {
     return new TouchCommand(cmd_line);
+  }
+  else if(firstWord.compare("timeout") == 0) {
+    return new TimeoutCommand(cmd_line);
   }
 
   else {
@@ -543,7 +577,13 @@ void ExternalCommand::execute() {
   else {  //parent
     this->child_pid = pid;
     SmallShell& smash = SmallShell::getInstance();
+    if(smash.time_this.time_this == true) {
+      smash.time_this.pid = pid;
+      smash.time_this.start_time = time(NULL);
+      // smash.time_this->cmd_s = cmd_line_const;
+    }
     if(!is_in_bg) {
+      auto it = smash.timeThis();  // if time_this == true, adds him to end of timed commands list
       smash.foreground_cmd = this;
       int success = 0;
       int status = 0;
@@ -551,6 +591,7 @@ void ExternalCommand::execute() {
         success = waitpid(pid, &status, WNOHANG | WUNTRACED | WCONTINUED);
       } while(success == 0);
       smash.foreground_cmd = nullptr;
+      smash.reset_timed_cmd(it);  // if the command had timeout but finished, mark it as finished
       if(success == -1) {
         perror("smash error: waitpid failed");
       }
@@ -703,7 +744,7 @@ JobsList::JobEntry* JobsList::getLastStoppedJob(int *jobId) {
 
 /**************************************************************************************************************/
 /**************************************************************************************************************/
-/*********************************************SPECIAL COMMANDS************************************************/
+/**********************************************SPECIAL COMMANDS************************************************/
 /**************************************************************************************************************/
 /**************************************************************************************************************/
 
@@ -812,4 +853,35 @@ void PipeCommand::execute(){
   close(fd[1]);
   waitpid(left_command, NULL, 0);
   waitpid(right_command, NULL, 0);
+}
+
+/**************************************************************************************************************/
+/**************************************************************************************************************/
+/**************************************************BONUS*******************************************************/
+/**************************************************************************************************************/
+/**************************************************************************************************************/
+
+/** TIMEOUT **/
+TimeoutCommand::TimeoutCommand(const char* cmd_line) : Command(cmd_line) {}
+
+// TimeoutCommand::~TimeoutCommand() {}
+
+void TimeoutCommand::execute() {
+  if(num_of_args < 3) {
+    std::cerr << "smash error: timeout: invalid arguments\n";
+    return;
+  }
+  int duration = atoi(args[1]);
+  if(duration < 0) {
+    std::cerr << "smash error: timeout: invalid arguments\n";
+    return;
+  }
+  std::string cmd_line_s = std::string(cmd_line);
+  std::size_t cmd_start_index = cmd_line_s.find_first_of(args[1][strlen(args[1])-1]);  // finds the index of the last char of args[1]
+  std::string cmd = std::string(cmd_line_s.begin()+cmd_start_index+1, cmd_line_s.end());
+  TimedCmd timed_cmd(duration);
+  timed_cmd.cmd_s = cmd_line_const;
+  SmallShell::getInstance().time_this = timed_cmd;  // copies
+  alarm(duration);
+  SmallShell::getInstance().executeCommand(cmd.c_str());
 }

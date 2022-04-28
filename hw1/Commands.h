@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <list>
 
 #define COMMAND_ARGS_MAX_LENGTH (200)
 #define COMMAND_MAX_ARGS (20)
@@ -199,21 +200,36 @@ class TouchCommand : public BuiltInCommand {
   void execute() override;
 };
 
-// class TimeoutCommand : public Command {
-//  public:
-//   TimeoutCommand(const char* cmd_line);
-//   virtual ~TimeoutCommand() {}
-//   void TimeoutCommand() override;
-// };
+class TimeoutCommand : public Command {
+ public:
+  TimeoutCommand(const char* cmd_line);
+  virtual ~TimeoutCommand() {}
+  void execute() override;
+};
 
+struct TimedCmd {
+  int time_to_alarm;
+  pid_t pid;
+  time_t start_time;
+  std::string cmd_s;
+  bool time_this;
+  TimedCmd(int time_to_alarm) : time_to_alarm(time_to_alarm), pid(-1), start_time(-1), cmd_s(), time_this(true) {
+    if(time_to_alarm == -1) {
+      time_this = false;
+    }
+  };
+  // TimedCmd(int time_to_alarm, pid_t pid, time_t start_time, bool is_finished) : time_to_alarm(time_to_alarm), pid(pid), start_time(start_time), is_finished(is_finished) {}
+};
 
 class SmallShell {
  private:
   char* last_path;
   JobsList job_list;
+  std::list<TimedCmd> timed_cmds;
 
   SmallShell();
  public:
+  TimedCmd time_this;
   Command* foreground_cmd;
   int foreground_jobid;
   std::string prompt;
@@ -232,8 +248,25 @@ class SmallShell {
   JobsList::JobEntry* getJobById(int job_id) {
     return job_list.getJobById(job_id);
   }
+  std::list<TimedCmd>::iterator timeThis() {
+    if(this->time_this.time_this == true) {
+      timed_cmds.push_back(time_this);
+      this->time_this.time_this = false;
+      return std::prev(timed_cmds.end());
+    }
+    return timed_cmds.end();
+  }
+  void reset_timed_cmd(std::list<TimedCmd>::iterator& it) {
+    if(it != timed_cmds.end()) {
+      it->pid = -1;
+    }
+  }
+  void killTimedCmmands();  // in cpp file
   void moveToBackground(Command* cmd, bool is_stopped=false) {
     job_list.addJob(cmd, is_stopped);
+    timeThis();
   }
 };
+
+
 #endif
