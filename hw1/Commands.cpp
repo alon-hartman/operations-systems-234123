@@ -235,7 +235,7 @@ void ChangeDirCommand::execute() {
     return;
   }
   else if(num_of_args == 1) {
-    retur
+    return;
   }
   char* current_path = getcwd(NULL, 0);
   if(current_path == NULL) {
@@ -536,7 +536,7 @@ void ExternalCommand::execute() {
   if(pid == 0) {  // child
     setpgrp();
     _removeBackgroundSign(cmd_line);
-    int success = execl("/bin/bash", "bash", "-c", cmd_line, NULL);
+    int success = execl("/bin/bash", "/bin/bash", "-c", cmd_line, NULL);
     if(success == -1) {
       perror("smash error: execv failed");
     }
