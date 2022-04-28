@@ -591,9 +591,12 @@ void ExternalCommand::execute() {
         success = waitpid(pid, &status, WNOHANG | WUNTRACED | WCONTINUED);
       } while(success == 0);
       smash.foreground_cmd = nullptr;
-      smash.reset_timed_cmd(it);  // if the command had timeout but finished, mark it as finished
       if(success == -1) {
         perror("smash error: waitpid failed");
+      }
+      if((WIFEXITED(status) == 1 && WIFSTOPPED(status) == 0) ||
+         (WIFSIGNALED(status) == 1 && WTERMSIG(status) == SIGINT)) {  
+        smash.reset_timed_cmd(it);  // process finished normally or by signal, mark it as such
       }
     }
     else {
