@@ -89,7 +89,7 @@ void _removeBackgroundSign(char* cmd_line) {
 }
 
 bool is_digits(const std::string &str){
-  return str.find_first_not_of("0123456789") == std::string::npos;
+  return str.find_first_not_of("-0123456789") == std::string::npos;
 }
 
 SmallShell::SmallShell() : last_path(NULL), job_list(), timed_cmds(), time_this(-1), foreground_cmd(nullptr), 
@@ -114,13 +114,14 @@ void SmallShell::killTimedCmmands() {
     }
     else if(success == -1) {
       perror("smash error: waitpid failed");
+      return;
     }
     else if(difftime(time(NULL), it->start_time) >= it->time_to_alarm)  {  // not finished but timed out
       if(kill(it->pid, SIGKILL) == -1) {
         perror("smash error: kill failed");
-      return;
+        return;
       }
-      std::cout << "smash: " << it->cmd_s << " timed out!\n";
+      std::cout << "smash: " << it->cmd_s << " timed out!" << std::endl;
       it = timed_cmds.erase(it);
       continue;
     }
@@ -249,7 +250,7 @@ void GetCurrDirCommand::execute() {
     perror("smash error: getcwd failed");
     return;
   }
-  std::cout << path << "\n";
+  std::cout << path << std::endl;
   free(path);
 }
 
@@ -257,7 +258,7 @@ void GetCurrDirCommand::execute() {
 ShowPidCommand::ShowPidCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {}
 
 void ShowPidCommand::execute() {
-  std::cout << "smash pid is: " << (SmallShell::getInstance()).smash_pid << "\n";
+  std::cout << "smash pid is " << (SmallShell::getInstance()).smash_pid << endl;
 }
 
 /** CD **/
@@ -316,8 +317,7 @@ void KillCommand::execute() {
   }
   int job_id = atoi(args[2]);
   int signal = std::abs(atoi(args[1]));
-  std::cout << "job_id: " << job_id << "\tsignal: " << signal << "\n";
-  if(job_id == 0 || signal < 1 || signal > 31) {
+  if(job_id == 0 || signal < 1 || signal > 31 || atoi(args[1]) > 0 || is_digits(string(args[1])) == false) {
     std::cerr << "smash error: kill: invalid arguments" << endl;
     return;
   }
@@ -337,7 +337,7 @@ void KillCommand::execute() {
   else if(signal == SIGSTOP) {
     job->is_stopped = true;
   }
-  std::cout << "signal number " << signal << " was sent to pid " << job->pid << "\n";
+  std::cout << "signal number " << signal << " was sent to pid " << job->pid << std::endl;
 }
 
 /** FG **/
@@ -350,26 +350,31 @@ void ForegroundCommand::execute() {
   if(num_of_args == 1) {
     job = job_list->getLastJob(&job_id);
     if(job_id == 0) {
-      std::cerr << "smash error: fg: jobs list is empty\n";
+      std::cerr << "smash error: fg: jobs list is empty" << std::endl;
       return;
     }
   }
   else if(num_of_args == 2) {
     job_id = atoi(args[1]);
+    if(is_digits(string(args[1])) == false) {
+      std::cerr << "smash error: fg: invalid arguments" << std::endl;
+      return;
+    }
     job = job_list->getJobById(job_id);
-    if(job == nullptr && is_digits(string(args[1]))) {
-      std::cerr << "smash error: fg: job-id " << job_id << " does not exist\n";
+    if(job == nullptr) {
+      std::cerr << "smash error: fg: job-id " << job_id << " does not exist" << std::endl;
       return;
     }
   }
   else {
-    std::cerr << "smash error: fg: invalid arguments\n";
+    std::cerr << "smash error: fg: invalid arguments" << std::endl;
     return;
   }
 
   if(job->is_stopped == true) {
     if(kill(job->pid, SIGCONT) == -1){
       perror("smash error: kill failed");
+      return;
     }
     job->is_stopped = false;
   }
@@ -378,7 +383,7 @@ void ForegroundCommand::execute() {
   smash.foreground_cmd = &ecmd;
   smash.foreground_cmd->child_pid = job->pid;
   smash.foreground_jobid = job->job_id;
-  std::cout << smash.foreground_cmd->cmd_line_const << " : " << job->pid << "\n";
+  std::cout << smash.foreground_cmd->cmd_line_const << " : " << job->pid << std::endl;
   job->cmd_line = "";
   job_list->removeJobById(job_id);
   int success = 0;
@@ -398,27 +403,27 @@ void BackgroundCommand::execute() {
   if(num_of_args == 1) {
     job = job_list->getLastStoppedJob(&job_id);
     if(job_id == 0) {
-      std::cerr << "smash error: bg: there is no stopped jobs to resume\n";
+      std::cerr << "smash error: bg: there is no stopped jobs to resume" << std::endl;
       return;
     }
   }
   else if(num_of_args == 2) {
     job_id = atoi(args[1]);
     job = job_list->getJobById(job_id);
-    if(job == nullptr && is_digits(string(args[1]))) {
-      std::cerr << "smash error: fg: job-id " << job_id << " does not exist\n";
+    if(job == nullptr) {
+      std::cerr << "smash error: bg: job-id " << job_id << " does not exist" << std::endl;
       return;
     }
     else if(job->is_stopped == false) {
-      std::cerr << "smash error: bg: job-id " << job->job_id << "is already running in the background\n";
+      std::cerr << "smash error: bg: job-id " << job->job_id << " is already running in the background" << std::endl;
       return;
     }
   }
   else {
-    std::cerr << "smash error: fg: invalid arguments\n";
+    std::cerr << "smash error: bg: invalid arguments" << std::endl;
     return;
   }
-  std::cout << job->cmd_line << " : " << job->pid << "\n";
+  std::cout << job->cmd_line << " : " << job->pid << std::endl;
   if(kill(job->pid, SIGCONT) == -1) {
     perror("smash error: kill failed");
     return;
@@ -449,14 +454,18 @@ void TailCommand::execute() {
   }
   else if(num_of_args == 3) {
     N = std::abs(atoi(args[1]));
-    if(std::string(args[1]).rfind("--", 0) == 0) {
-      std::cerr << "smash error: fg: invalid arguments\n";
+    std::string tmp = args[1];
+    if(tmp.rfind("--", 0) == 0 || tmp.find_first_of('-') == std::string::npos || tmp.find_first_of("0123456789") == std::string::npos) {
+      std::cerr << "smash error: tail: invalid arguments" << std::endl;
+      return;
+    }
+    if(N == 0) {
       return;
     }
     file_path = args[2];
   }
   else {
-    std::cerr << "smash error: fg: invalid arguments\n";
+    std::cerr << "smash error: tail: invalid arguments" << std::endl;
     return;
   }
 
@@ -465,25 +474,28 @@ void TailCommand::execute() {
     perror("smash error: open failed");
     return;
   }
-  int end_offset = lseek(fd, -1, SEEK_END) + 1;
-  if(end_offset == -1) {
-    perror("smash error: seeker failed");
-    return;
-  }
-  int seeker = end_offset-1;
+  int end_offset = lseek(fd, -1, SEEK_END) + 1;  // -1 so seeker will be just before '\0'
+
+  // if(end_offset == 0) {
+  //   perror("smash error: lseek failed");
+  //   return;
+  // }
+  int seeker = end_offset - 1;
 
   char c = '\0';
-  while(seeker != 0) {  // exit if reached start of file
+  while(seeker > 0) {  // exit if reached start of file
     readerr = read(fd, &c, 1);
     if(readerr == -1){
       perror("smash error: read failed");
       return;
     }
-    else if(readerr == 0) { //might happen when reading from pipe
+    else if(readerr == 0) { // might happen when reading from pipe
       continue;
     }
     if(c == '\n') {
-      N--;
+      if(seeker != end_offset - 1) {  // ignores last newline
+        N--;
+    }
       if(N == 0) break;
     }
     seeker = lseek(fd, seeker-1, SEEK_SET);
@@ -522,7 +534,7 @@ TouchCommand::TouchCommand(const char* cmd_line) : BuiltInCommand(cmd_line) {}
 
 void TouchCommand::execute() {
   if(num_of_args != 3) {
-    std::cerr << "smash error: touch: invalid arguments\n";
+    std::cerr << "smash error: touch: invalid arguments" << std::endl;
     return;
   }
   std::string timestamp = args[2];
@@ -565,6 +577,7 @@ void ExternalCommand::execute() {
   pid_t pid = fork();
   if(pid == -1) {
     perror("smash error: fork failed");
+    return;
   }
   if(pid == 0) {  // child
     setpgrp();
@@ -572,6 +585,7 @@ void ExternalCommand::execute() {
     int success = execl("/bin/bash", "/bin/bash", "-c", cmd_line, NULL);
     if(success == -1) {
       perror("smash error: execv failed");
+      return;
     }
   }
   else {  //parent
@@ -591,8 +605,10 @@ void ExternalCommand::execute() {
         success = waitpid(pid, &status, WNOHANG | WUNTRACED | WCONTINUED);
       } while(success == 0);
       smash.foreground_cmd = nullptr;
+      smash.foreground_jobid = -1;
       if(success == -1) {
         perror("smash error: waitpid failed");
+        return;
       }
       if((WIFEXITED(status) == 1 && WIFSTOPPED(status) == 0) ||
          (WIFSIGNALED(status) == 1 && WTERMSIG(status) == SIGINT)) {  
@@ -617,7 +633,7 @@ JobsList::JobEntry::JobEntry(Command* cmd, bool isStopped, int job_id)
     cmd_line(cmd->cmd_line_const), is_stopped(isStopped) {
       if(pid == -1) {
         // should never happen
-        std::cout << "command is not a child proccess but is still in the jobs list\n";
+        std::cout << "command is not a child proccess but is still in the jobs list" << std::endl;
       }
     }
 
@@ -671,16 +687,16 @@ void JobsList::printJobsList() {
   for(auto& it : jobs_vec) {
     std::string stopped_string = "";
     if(it.is_stopped == true) {
-      stopped_string = "(stopped)";
+      stopped_string = " (stopped)";
     }
     time_t current_time = time(NULL);
     std::cout << "[" << it.job_id << "] " << it.cmd_line << " : " << it.pid \
-              << " " << difftime(current_time, it.start_time) << " secs " << stopped_string << "\n";
+              << " " << difftime(current_time, it.start_time) << " secs" << stopped_string << std::endl;
   }
 }
 void JobsList::killAllJobs() {
   std::sort(jobs_vec.begin(), jobs_vec.end());
-  std::cout << "smash: sending SIGKILL signal to " << jobs_vec.size() << " jobs:\n";
+  std::cout << "smash: sending SIGKILL signal to " << jobs_vec.size() << " jobs:" << std::endl;
   for(auto it = jobs_vec.begin(); it != jobs_vec.end(); ++it) {
     std::cout << it->pid << ": " << it->cmd_line << endl;
     int success = kill(it->pid, SIGKILL);
@@ -703,6 +719,7 @@ void JobsList::removeFinishedJobs() {
     }
     else if(success == -1) {
       perror("smash error: waitpid failed");
+      return;
     }
     ++it;
   }
@@ -771,25 +788,32 @@ void RedirectionCommand::prepare() {
   new_file_descriptor = dup(STDOUT);
   if(new_file_descriptor == -1) {
     perror("smash error: dup failed");
+    cmd = "";
+    return;
   }
-  if(close(1) == -1) {
+  if(close(STDOUT) == -1) {
     perror("smash error: close failed");
+    cmd = "";
+    return;
   }
   int out_channel = -1;
   if(this->append == true) {
-    out_channel = open(file_path.c_str(), O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG);
+    out_channel = open(file_path.c_str(), O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
   } 
   else {
-    out_channel = open(file_path.c_str(), O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG);
+    out_channel = open(file_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
   }
   if(out_channel == -1) {
     perror("smash error: open failed");
+    cmd = ""; // reset command so nothing will happen in execute
+    return;
   }
 }
 
 void RedirectionCommand::cleanup() {
   if(dup2(new_file_descriptor, STDOUT) == -1) {  // returns stdout to channel 1
     perror("smash error: dup2 failed");
+    return;
   }
   if(close(new_file_descriptor) == -1) {
     perror("smash error: close failed");
@@ -871,12 +895,12 @@ TimeoutCommand::TimeoutCommand(const char* cmd_line) : Command(cmd_line) {}
 
 void TimeoutCommand::execute() {
   if(num_of_args < 3) {
-    std::cerr << "smash error: timeout: invalid arguments\n";
+    std::cerr << "smash error: timeout: invalid arguments" << std::endl;
     return;
   }
   int duration = atoi(args[1]);
   if(duration < 0) {
-    std::cerr << "smash error: timeout: invalid arguments\n";
+    std::cerr << "smash error: timeout: invalid arguments" << std::endl;
     return;
   }
   std::string cmd_line_s = std::string(cmd_line);

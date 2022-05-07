@@ -8,12 +8,13 @@ using namespace std;
 void ctrlZHandler(int sig_num) {
   std::cout << "smash: got ctrl-Z" << endl;
   SmallShell& shell = SmallShell::getInstance();
-  if(shell.foreground_cmd->child_pid != -1) {
+  if(shell.foreground_cmd != nullptr) {
     int success = kill(shell.foreground_cmd->child_pid, SIGSTOP);
     if(success == -1){
       perror("smash error: kill failed");
       return;
     }
+    std::cout << "smash: process " << shell.foreground_cmd->child_pid << " was stopped\n";
     shell.moveToBackground(shell.foreground_cmd, true);
   }
 }
@@ -27,8 +28,9 @@ void ctrlCHandler(int sig_num) {
       perror("smash error: kill failed");
       return;
     }
-    shell.foreground_cmd = nullptr;
-    shell.foreground_jobid = -1;
+    std::cout << "smash: process " << shell.foreground_cmd->child_pid << " was killed\n";
+    // shell.foreground_cmd = nullptr;
+    // shell.foreground_jobid = -1;
   }
 }
 
