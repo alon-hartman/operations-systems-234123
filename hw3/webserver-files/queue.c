@@ -96,8 +96,8 @@ void queuePrint(Queue* q) {
 }
 
 void queueDiscardX(Queue* q, int num) {
-    num = (num < queueSize(q))? num : queueSize(q);
-    printf("current queue size: %d going to remove: %d nodes\n" , q->size , num);
+    num = (num < queueSize(q)) ? num : queueSize(q);
+    printf("current waiting queue size: %d going to remove: %d nodes\n" , q->size , num);
     while(num > 0) {
         int index = rand() % q->size;
         int p = queueRemoveByIndex(q, index);

@@ -29,7 +29,7 @@ typedef enum {
 void getargs(int *port, int *threads, int *queue_size, OverloadType *schedalg, int argc, char *argv[])
 {
     if (argc != 5) {
-        fprintf(stderr, "Usage: %s <port>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <port> <threads> <queue_size> <schedalg>\n", argv[0]);
         exit(1);
     }
     *port = atoi(argv[1]);
