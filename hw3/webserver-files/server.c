@@ -116,8 +116,6 @@ int main(int argc, char *argv[])
         gettimeofday(&t, NULL);
         
         pthread_mutex_lock(&m);
-            queuePrint(waiting_requests);
-            queuePrint(running_requests);
             switch(schedalg) {
                 case BLOCK:
                     while(queue_size <= queueSize(waiting_requests) + queueSize(running_requests)) {
@@ -164,8 +162,6 @@ int main(int argc, char *argv[])
                     }
                     break;
             }
-            queuePrint(waiting_requests);
-            queuePrint(running_requests);
         pthread_mutex_unlock(&m);
     }
 
