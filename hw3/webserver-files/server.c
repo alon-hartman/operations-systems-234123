@@ -51,14 +51,10 @@ void getargs(int *port, int *threads, int *queue_size, OverloadType *schedalg, i
 void* thread_routine(void *arg) {
     threadStats *tstats = (threadStats *)arg;
     tstats->thread = pthread_self();
-    printf("\n===%ld was firstly summoned ===\n" ,pthread_self());
     while(1) {
         pthread_mutex_lock(&m);
             while(queueSize(waiting_requests) == 0) {        // there are no requests
-                printf("\n===%ld going to sleep ===\n" ,pthread_self());
                 pthread_cond_wait(&c, &m);                  // wait for a request
-                    printf("\n===%ld im WOKEGE ===\n" ,pthread_self());
-
             }
             struct timeval arrival;
             int fd = queuePop(waiting_requests, &arrival);
@@ -100,9 +96,6 @@ int main(int argc, char *argv[])
     pthread_cond_init(&c, NULL);
     pthread_mutex_init(&m, NULL);
 
-    // pthread_cond_init(&c_running, NULL);
-    // pthread_mutex_init(&m_running, NULL);
-
     // HW3: Create some threads...
     threadStats threads[threads_num];
     for(int i=0; i<threads_num; ++i) {
@@ -123,24 +116,18 @@ int main(int argc, char *argv[])
         gettimeofday(&t, NULL);
         
         pthread_mutex_lock(&m);
-            printf("--- start ---\n");
-            printf("waiting requests print:\n");
             queuePrint(waiting_requests);
-            printf("\nrunning requests print:\n");
             queuePrint(running_requests);
             switch(schedalg) {
                 case BLOCK:
                     while(queue_size <= queueSize(waiting_requests) + queueSize(running_requests)) {
-                        printf("\n~~~MAIN goin to sleep ~~~\n");
                         pthread_cond_wait(&c, &m);
-                        printf("\n~~~MAIN woken up ~~~\n");
                     }
                     queuePush(waiting_requests, connfd, t);
                     pthread_cond_signal(&c);
                     break;
                 case DROP_TAIL:
                     if(queue_size <= queueSize(waiting_requests) + queueSize(running_requests)) {
-                        printf("going to drop %d\n", connfd);
                         Close(connfd);
                     }
                     else {
@@ -177,28 +164,12 @@ int main(int argc, char *argv[])
                     }
                     break;
             }
-            printf("\n--- end ---\n");
-            printf("waiting requests print:\n");
             queuePrint(waiting_requests);
-            printf("\nrunning requests print:\n");
             queuePrint(running_requests);
-            printf("\n");
         pthread_mutex_unlock(&m);
-        
-
-        // 
-        // HW3: In general, don't handle the request in the main thread.
-        // Save the relevant info in a buffer and have one of the worker threads 
-        // do the work. 
-        // 
-
-        // requestHandle(connfd);
-
-        // Close(connfd);
     }
 
     //should not be reached
-    printf("should never be printed COPIUM\n");
     for (int i = 0; i < threads_num; i++)
     {
         pthread_cancel(threads[i].thread);
