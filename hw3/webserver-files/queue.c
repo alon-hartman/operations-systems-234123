@@ -114,7 +114,8 @@ int queueRemoveByIndex(Queue* q, int index) {
         return queuePop(q,NULL);
     }
     Node* it = q->head;
-    Node* tmp;int fd;
+    Node* tmp;
+    int fd;
     for (int i = 0; i < index-1; i++) {
         it = it->next;
     }

@@ -183,6 +183,8 @@ void requestHandle(int fd, threadStats *tstats)
    sscanf(buf, "%s %s %s", method, uri, version);
 
    printf("%s %s %s\n", method, uri, version);
+   
+   tstats->handled_requests++;
 
    if (strcasecmp(method, "GET")) {
       requestError(fd, method, "501", "Not Implemented", "OS-HW3 Server does not implement this method", tstats);
@@ -192,7 +194,6 @@ void requestHandle(int fd, threadStats *tstats)
 
    is_static = requestParseURI(uri, filename, cgiargs);
 
-   tstats->handled_requests++;
 
    if (stat(filename, &sbuf) < 0) {
       requestError(fd, filename, "404", "Not found", "OS-HW3 Server could not find this file", tstats);

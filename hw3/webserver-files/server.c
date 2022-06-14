@@ -68,7 +68,7 @@ void* thread_routine(void *arg) {
             pthread_cond_broadcast(&c);
         pthread_mutex_unlock(&m);
         
-        requestHandle(fd,tstats);
+        requestHandle(fd, tstats);
         Close(fd);
 
         pthread_mutex_lock(&m);
@@ -115,6 +115,14 @@ int main(int argc, char *argv[])
         struct timeval t = {0, 0};
         gettimeofday(&t, NULL);
         
+        printf("\n------------------------------\n");
+        printf("=== start of while ===\n");
+        printf("  waiting: ");
+        queuePrint(waiting_requests);
+        printf("\n  running: ");
+        queuePrint(running_requests);
+        printf("\n\n");
+
         pthread_mutex_lock(&m);
             switch(schedalg) {
                 case BLOCK:
@@ -135,7 +143,7 @@ int main(int argc, char *argv[])
                     break;
                 case DROP_RAND:
                     if(queue_size <= queueSize(waiting_requests) + queueSize(running_requests)) {
-                        int num = ceil((queueSize(waiting_requests) + queueSize(running_requests)*0.3f));
+                        int num = ceil((queueSize(waiting_requests)*0.3f));
                         queueDiscardX(waiting_requests,num);  // queue is full
                     }
                     if(queue_size > queueSize(waiting_requests) + queueSize(running_requests)) {
@@ -150,11 +158,13 @@ int main(int argc, char *argv[])
                     if(queue_size <= queueSize(waiting_requests) + queueSize(running_requests)) {
                         int head = queuePop(waiting_requests, NULL);
                         if(head != -1) { 
+                            printf("DROPPED HEAD: %d\n", head);
                             Close(head);
                             queuePush(waiting_requests, connfd, t);
                             pthread_cond_signal(&c);
                         }
                         else {
+                            printf("DROPPED CONNFD: %d\n", connfd);
                             Close(connfd);
                         }
                     }
@@ -165,6 +175,12 @@ int main(int argc, char *argv[])
                     break;
             }
         pthread_mutex_unlock(&m);
+        printf("=== end of while ===\n");
+        printf("  waiting: ");
+        queuePrint(waiting_requests);
+        printf("\n  running: ");
+        queuePrint(running_requests);
+        printf("\n------------------------------\n");
     }
 
     //should not be reached
