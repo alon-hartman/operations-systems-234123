@@ -114,14 +114,6 @@ int main(int argc, char *argv[])
         connfd = Accept(listenfd, (SA *)&clientaddr, (socklen_t *) &clientlen);
         struct timeval t = {0, 0};
         gettimeofday(&t, NULL);
-        
-        printf("\n------------------------------\n");
-        printf("=== start of while ===\n");
-        printf("  waiting: ");
-        queuePrint(waiting_requests);
-        printf("\n  running: ");
-        queuePrint(running_requests);
-        printf("\n\n");
 
         pthread_mutex_lock(&m);
             switch(schedalg) {
@@ -158,13 +150,11 @@ int main(int argc, char *argv[])
                     if(queue_size <= queueSize(waiting_requests) + queueSize(running_requests)) {
                         int head = queuePop(waiting_requests, NULL);
                         if(head != -1) { 
-                            printf("DROPPED HEAD: %d\n", head);
                             Close(head);
                             queuePush(waiting_requests, connfd, t);
                             pthread_cond_signal(&c);
                         }
                         else {
-                            printf("DROPPED CONNFD: %d\n", connfd);
                             Close(connfd);
                         }
                     }
@@ -175,12 +165,6 @@ int main(int argc, char *argv[])
                     break;
             }
         pthread_mutex_unlock(&m);
-        printf("=== end of while ===\n");
-        printf("  waiting: ");
-        queuePrint(waiting_requests);
-        printf("\n  running: ");
-        queuePrint(running_requests);
-        printf("\n------------------------------\n");
     }
 
     //should not be reached
