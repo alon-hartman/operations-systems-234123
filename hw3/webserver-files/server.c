@@ -151,6 +151,8 @@ int main(int argc, char *argv[])
                         int head = queuePop(waiting_requests, NULL);
                         if(head != -1) { 
                             Close(head);
+                            queuePush(waiting_requests, connfd, t);
+                            pthread_cond_signal(&c);
                         }
                         else {
                             Close(connfd);

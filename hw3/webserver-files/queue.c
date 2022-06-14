@@ -90,9 +90,10 @@ void queuePrint(Queue* q) {
     }
     printf("queue:    ");
     while(it) {
-        printf("%d ", it->data);
+        printf("%d -> ", it->data);
         it = it->next;
     }
+    printf("\n");
 }
 
 void queueDiscardX(Queue* q, int num) {
