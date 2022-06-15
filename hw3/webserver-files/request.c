@@ -120,18 +120,18 @@ void requestServeDynamic(int fd, char *filename, char *cgiargs,threadStats *tsta
    sprintf(buf, "%sStat-Thread-Id:: %d\r\n", buf, tstats->id);
    sprintf(buf, "%sStat-Thread-Count:: %d\r\n", buf, tstats->handled_requests);
    sprintf(buf, "%sStat-Thread-Static:: %d\r\n", buf, tstats->handled_stat_requests);
-   sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n\r\n", buf, tstats->handled_dyn_requests);
+   sprintf(buf, "%sStat-Thread-Dynamic:: %d\r\n", buf, tstats->handled_dyn_requests);
 
    Rio_writen(fd, buf, strlen(buf));
-
-   if (Fork() == 0) {
+   pid_t child = Fork();
+   if (child == 0) {
       /* Child process */
       Setenv("QUERY_STRING", cgiargs, 1);
       /* When the CGI process writes to stdout, it will instead go to the socket */
       Dup2(fd, STDOUT_FILENO);
       Execve(filename, emptylist, environ);
    }
-   Wait(NULL);
+   waitpid(child, NULL, 0);
 }
 
 
@@ -185,6 +185,9 @@ void requestHandle(int fd, threadStats *tstats)
    printf("%s %s %s\n", method, uri, version);
    
    tstats->handled_requests++;
+   struct timeval time_now = {0, 0};
+   gettimeofday(&time_now, NULL);
+   timersub(&time_now, &tstats->arrival, &tstats->dispatch);
 
    if (strcasecmp(method, "GET")) {
       requestError(fd, method, "501", "Not Implemented", "OS-HW3 Server does not implement this method", tstats);

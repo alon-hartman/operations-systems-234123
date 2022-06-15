@@ -27,7 +27,7 @@ int queueSize(Queue* q);
 
 int queuePop(Queue* q, struct timeval *arrival);
 
-int queuePush(Queue* q, int data, struct timeval arrival);
+int queuePush(Queue* q, int data);
 
 void queuePrint(Queue* q);
 
