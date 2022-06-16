@@ -62,9 +62,7 @@ int queuePop(Queue* q, struct timeval* at) {
     return data;
 }
 
-int queuePush(Queue* q, int data) {
-    struct timeval arrival = {0, 0};
-    gettimeofday(&arrival, NULL);
+int queuePush(Queue* q, int data, struct timeval arrival) {
     Node* new_node = (Node *)malloc(sizeof(Node));
     if(!new_node) {
         return -1;

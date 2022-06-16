@@ -58,7 +58,8 @@ void* thread_routine(void *arg) {
             }
             int fd = queuePop(waiting_requests, &tstats->arrival);
             
-            queuePush(running_requests, fd);
+            struct timeval temp;
+            queuePush(running_requests, fd, temp);
             pthread_cond_broadcast(&c);
         pthread_mutex_unlock(&m);
         
@@ -106,6 +107,8 @@ int main(int argc, char *argv[])
     while (1) {
         clientlen = sizeof(clientaddr);
         connfd = Accept(listenfd, (SA *)&clientaddr, (socklen_t *) &clientlen);
+        struct timeval arrival = {0, 0};
+        gettimeofday(&arrival, NULL);
 
         pthread_mutex_lock(&m);
             switch(schedalg) {
@@ -113,7 +116,7 @@ int main(int argc, char *argv[])
                     while(queue_size <= queueSize(waiting_requests) + queueSize(running_requests)) {
                         pthread_cond_wait(&c, &m);
                     }
-                    queuePush(waiting_requests, connfd);
+                    queuePush(waiting_requests, connfd, arrival);
                     pthread_cond_signal(&c);
                     break;
                 case DROP_TAIL:
@@ -121,7 +124,7 @@ int main(int argc, char *argv[])
                         Close(connfd);
                     }
                     else {
-                        queuePush(waiting_requests, connfd);
+                        queuePush(waiting_requests, connfd, arrival);
                         pthread_cond_signal(&c);
                     }
                     break;
@@ -131,7 +134,7 @@ int main(int argc, char *argv[])
                         queueDiscardX(waiting_requests,num);  // queue is full
                     }
                     if(queue_size > queueSize(waiting_requests) + queueSize(running_requests)) {
-                        queuePush(waiting_requests, connfd);  // queue is not full
+                        queuePush(waiting_requests, connfd, arrival);  // queue is not full
                         pthread_cond_signal(&c);
                     }
                     else {
@@ -143,7 +146,7 @@ int main(int argc, char *argv[])
                         int head = queuePop(waiting_requests, NULL);
                         if(head != -1) { 
                             Close(head);
-                            queuePush(waiting_requests, connfd);
+                            queuePush(waiting_requests, connfd, arrival);
                             pthread_cond_signal(&c);
                         }
                         else {
@@ -151,7 +154,7 @@ int main(int argc, char *argv[])
                         }
                     }
                     else {
-                        queuePush(waiting_requests, connfd);
+                        queuePush(waiting_requests, connfd, arrival);
                         pthread_cond_signal(&c);
                     }
                     break;
