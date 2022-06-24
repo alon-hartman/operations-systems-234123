@@ -1,6 +1,8 @@
 #include <unistd.h>
 #include <iostream>
 #include <cstring>
+#include <sys/mman.h>
+#include <sys/user.h>
 #include <cassert>
 
 #define MIN_SPLIT_SIZE 128
@@ -15,6 +17,15 @@ struct MallocMetadata {
     MallocMetadata* prev;
 };
 
+/**
+ * @brief 
+ * 
+ * @param allocated_blocks # of blocks in list
+ * @param free_blocks # of free blocks in list
+ * @param allocated_bytes # whole block - metadata
+ * @param free_bytes # payload in free package
+ * @param metadata_bytes # self explanitory
+ */
 void updateStatistics(size_t allocated_blocks, size_t free_blocks, size_t allocated_bytes , size_t free_bytes,
                                                                                             size_t metadata_bytes) {
     allocated_blocks += allocated_blocks;
@@ -177,7 +188,7 @@ MmapList mmap_list;
  */
 void splitBlock(size_t size, void* address) {
     void* address_low = address;
-    void* address_high = (void*)address + size + 2*SOM;
+    void* address_high = (char*)address + size + 2*SOM;
 
     block_list.removeMetadata((MallocMetadata*)address_low);
 
@@ -187,9 +198,9 @@ void splitBlock(size_t size, void* address) {
     ((MallocMetadata*)address_low)->is_free = false;
     block_list.addMetadata((MallocMetadata*)address_low);
     block_list.addMetadata((MallocMetadata*)address_high);
-    std::memmove(address_high + ((MallocMetadata*)address_high)->size + SOM, address_high,
+    std::memmove((char*)address_high + ((MallocMetadata*)address_high)->size + SOM, address_high,
                                                                              ((MallocMetadata*)address_high)->size);
-    std::memmove(address_low + size + SOM, address_low, size);
+    std::memmove((char*)address_low + size + SOM, address_low, size);
 
     updateStatistics(1, 0, -2*SOM, -(2*SOM + size), 2*SOM);
 
@@ -210,13 +221,13 @@ void mergeBlocks(void* address) {
         prev_metadata = nullptr;
     }
     else {
-        prev_metadata = (MallocMetadata*)(address - SOM);
+        prev_metadata = (MallocMetadata*)((char*)address - SOM);
     }
-    if(address + ((MallocMetadata*)address)->size + 2*SOM == sbrk(0)) {
+    if((char*)address + ((MallocMetadata*)address)->size + 2*SOM == sbrk(0)) {
         next_metadata = nullptr;
     }
     else {
-        next_metadata = (MallocMetadata*)(address + ((MallocMetadata*)address)->size + SOM);
+        next_metadata = (MallocMetadata*)((char*)address + ((MallocMetadata*)address)->size + SOM);
     }
     bool prev_free = prev_metadata ? prev_metadata->is_free : false;
     bool next_free = next_metadata ? next_metadata->is_free : false;
@@ -227,7 +238,7 @@ void mergeBlocks(void* address) {
         block_list.removeMetadata(prev_metadata);
         block_list.removeMetadata((MallocMetadata*)address);
         block_list.addMetadata(prev_metadata);
-        std::memmove((void*)prev_metadata + prev_metadata->size + 2*SOM, prev_metadata, SOM);
+        std::memmove((char*)prev_metadata + prev_metadata->size + 2*SOM, prev_metadata, SOM);
         updateStatistics(-2, -1, 4*SOM, ((MallocMetadata*)address)->size + 4*SOM, -4*SOM);
         if(next_metadata == block_list.wilderness) {
             block_list.wilderness = prev_metadata;
@@ -238,7 +249,7 @@ void mergeBlocks(void* address) {
         block_list.removeMetadata(next_metadata);
         block_list.removeMetadata((MallocMetadata*)address);
         block_list.addMetadata((MallocMetadata*)address);
-        std::memmove(address + ((MallocMetadata*)address)->size + 2*SOM, address, SOM);
+        std::memmove((char*)address + ((MallocMetadata*)address)->size + 2*SOM, address, SOM);
         updateStatistics(-1, 0, 2*SOM, ((MallocMetadata*)address)->size + 2*SOM, -2*SOM);
         if(next_metadata == block_list.wilderness) {
             block_list.wilderness = (MallocMetadata*)address;
@@ -250,7 +261,7 @@ void mergeBlocks(void* address) {
         block_list.removeMetadata(prev_metadata);
         block_list.removeMetadata((MallocMetadata*)address);
         block_list.addMetadata(prev_metadata);
-        std::memmove((void*)prev_metadata + prev_metadata->size + 2*SOM, prev_metadata, SOM);
+        std::memmove((char*)prev_metadata + prev_metadata->size + 2*SOM, prev_metadata, SOM);
         updateStatistics(-1, 0, 2*SOM, ((MallocMetadata*)address)->size + 2*SOM, -2*SOM);
         if(address == block_list.wilderness) {
             block_list.wilderness = prev_metadata;
@@ -261,10 +272,149 @@ void mergeBlocks(void* address) {
     }
 }
 
+void* tryMergeRealloc(void* address, size_t size, bool* should_split) {
+    MallocMetadata* prev_metadata;
+    MallocMetadata* next_metadata;
+    MallocMetadata* current = (MallocMetadata*)address;
+    if(address == sbrk_start) {
+        prev_metadata = nullptr;
+    }
+    else {
+        prev_metadata = (MallocMetadata*)((char*)address - SOM);
+    }
+    if((char*)address + current->size + 2*SOM == sbrk(0)) {
+        next_metadata = nullptr;
+    }
+    else {
+        next_metadata = (MallocMetadata*)((char*)address + current->size + SOM);
+    }
+    bool prev_free = prev_metadata ? prev_metadata->is_free : false;
+    bool next_free = next_metadata ? next_metadata->is_free : false;
+    if(prev_free) {
+        // case b
+        prev_metadata = prev_metadata - prev_metadata->size - SOM;
+        if(current == block_list.wilderness) {
+            if(size >= (current->size + prev_metadata->size + 2*SOM)) {
+                // need to enlarge wilderness
+                size_t added_size = size - (prev_metadata->size + current->size + 2*SOM);
+                if(sbrk(added_size) == (void*)-1) {
+                    return nullptr;
+                }
+                current->size += added_size;
+                updateStatistics(0, 0, added_size, 0, 0);
+                assert(size <= current->size + prev_metadata->size + 2*SOM);
+            }
+        }
+        if(size <= current->size + prev_metadata->size + 2*SOM) {
+            updateStatistics(-1, -1, 2*SOM, -prev_metadata->size, -2*SOM);
+            prev_metadata->size += current->size + 2*SOM;
+            prev_metadata->is_free = false;
+            std::memmove((char*)prev_metadata + SOM, (char*)address + SOM, current->size);
+            block_list.wilderness = prev_metadata;
+            block_list.removeMetadata(current);
+            block_list.removeMetadata(prev_metadata);
+            block_list.addMetadata(prev_metadata);
+            std::memmove((char*)prev_metadata + prev_metadata->size, prev_metadata, SOM);
+            *should_split = true;
+            return (char*)prev_metadata + SOM;
+        }
+    }
+    if(current == block_list.wilderness) {
+        // case c
+        size_t added_size = size - current->size;
+        assert(added_size > 0);
+        assert(added_size % 8 == 0);
+        updateStatistics(0, 0, added_size, 0, 0);
+        if(sbrk(added_size) == (void*)-1) {
+            return nullptr;
+        }
+        assert((unsigned long)sbrk(0) % 8 == 0);
+        current->size += added_size;
+        current->is_free = false;
+        assert(size <= current->size);
+        block_list.removeMetadata(current);
+        block_list.addMetadata(current);
+        std::memmove((char*)current + current->size, current, SOM);
+        *should_split = true;
+        return (char*)address + SOM;
+    }
+    if(next_free && (size <= next_metadata->size + current->size + 2*SOM)) {
+        // case d
+        updateStatistics(-1, -1, 2*SOM, -next_metadata->size, -2*SOM);
+        current->size += next_metadata->size + 2*SOM;
+        current->is_free = false;
+        block_list.removeMetadata(current);
+        block_list.removeMetadata(next_metadata);
+        block_list.addMetadata(current);
+        std::memmove((char*)current + current->size, current, SOM);
+        *should_split = true;
+        return (char*)address + SOM;
+    }
+    if(prev_free && next_free && (size <= prev_metadata->size + current->size + next_metadata->size + 4*SOM)) {
+        // case e
+        updateStatistics(-2, -2, 4*SOM, -(prev_metadata->size + next_metadata->size), -4*SOM);
+        prev_metadata = prev_metadata - prev_metadata->size - SOM;
+        prev_metadata->size += current->size + next_metadata->size + 4*SOM;
+        prev_metadata->is_free = false;
+        std::memmove((char*)prev_metadata + SOM, (char*)current + SOM, current->size);  // copy data from current to prev
+        block_list.removeMetadata(prev_metadata);
+        block_list.removeMetadata(current);
+        block_list.removeMetadata(next_metadata);
+        block_list.addMetadata(prev_metadata);
+        std::memmove((char*)prev_metadata + prev_metadata->size, prev_metadata, SOM);  // copy metadata from start to end
+        return (char*)prev_metadata + SOM;
+    }
+    if(next_free && next_metadata == block_list.wilderness) {
+        // case f
+        assert(size <= prev_metadata->size + current->size + next_metadata->size + 4*SOM);
+        if(prev_free) {
+            // enlarge wilderness as needed and merge all 3 blocks
+            prev_metadata = prev_metadata - prev_metadata->size - SOM;
+            size_t added_size = size - (prev_metadata->size + current->size + next_metadata->size + 4*SOM);
+            assert(added_size > 0);
+            assert(added_size % 8 == 0);
+            if(sbrk(added_size) == (void*)-1) {
+                return nullptr;
+            }
+            updateStatistics(-2, -2, added_size + 4*SOM, -(prev_metadata->size + next_metadata->size), -4*SOM);
+            prev_metadata->size += current->size + next_metadata->size + added_size + 4*SOM;
+            prev_metadata->is_free = false;
+            block_list.wilderness = prev_metadata;
+            std::memmove((char*)prev_metadata + SOM, (char*)current + SOM, current->size);
+            block_list.removeMetadata(prev_metadata);
+            block_list.removeMetadata(current);
+            block_list.removeMetadata(next_metadata);
+            block_list.addMetadata(prev_metadata);
+            std::memmove((char*)prev_metadata + prev_metadata->size, prev_metadata, SOM);
+            return (char*)prev_metadata + SOM;
+        }
+        else {
+            // enlarge wilderness as needed and merge current with next
+            size_t added_size = size - (current->size + next_metadata->size + 2*SOM);
+            assert(added_size > 0);
+            assert(added_size % 8 == 0);
+            if(sbrk(added_size) == (void*)-1){
+                return nullptr;
+            }
+            updateStatistics(-1, -1, added_size + 2*SOM, -next_metadata->size, -2*SOM);
+            next_metadata->size += added_size;
+            current->size += next_metadata->size + 2*SOM;
+            block_list.removeMetadata(current);
+            block_list.removeMetadata(next_metadata);
+            block_list.addMetadata(current);
+            std::memmove((char*)address + current->size, current, SOM);
+            block_list.wilderness = current;
+            return (char*)address + SOM;
+        }
+    }
+    return nullptr;
+}
+
 void* smalloc(size_t size) {
     if(size == 0 || size > 100000000 /*10^8*/) {
         return nullptr;
     }
+    size = size + (8 - (size % 8));
     if(size < MMAP_THRESHOLD) {
         MallocMetadata* address = block_list.searchFreeBlock(size);
         if(address) {
@@ -275,7 +425,7 @@ void* smalloc(size_t size) {
                 ((MallocMetadata*)address)->is_free = false;
                 updateStatistics(0, -1, 0, -((MallocMetadata*)address)->size, 0);
             }
-            return (void*)address + SOM;
+            return (char*)address + SOM;
         }
         void* new_address;
         if(block_list.wilderness && block_list.wilderness->is_free) { 
@@ -289,7 +439,16 @@ void* smalloc(size_t size) {
             block_list.removeMetadata(block_list.wilderness);
         }
         else {
-            //either wilderness doesnt exist or he is not free
+            //either wilderness doesn't exist or not free
+            if(sbrk(0) == sbrk_start && ((unsigned long)sbrk_start % 8) != 0) {
+                std::cout << "original sbrk not aligned: " << sbrk_start << std::endl;
+                size_t remainder = (unsigned long)sbrk_start % 8;
+                sbrk_start = sbrk(8-remainder);
+                if(sbrk_start == (void*)-1) {
+                    return nullptr;
+                }
+                std::cout << "sbrk set to: " << sbrk_start << std::endl;
+            }
             new_address = sbrk(size + 2*SOM);
             if(new_address == (void*)-1) {
                 return nullptr;
@@ -300,11 +459,19 @@ void* smalloc(size_t size) {
         ((MallocMetadata*)new_address)->size = size;
         ((MallocMetadata*)new_address)->is_free = false;
         block_list.addMetadata((MallocMetadata*)new_address);
-        std::memmove(new_address + SOM + size, new_address, SOM);
-        return new_address + SOM;
+        std::memmove((char*)new_address + SOM + size, new_address, SOM);
+        return (char*)new_address + SOM;
     }
     else {
-        //TODO: complete mmap list (everything)
+        void* address = mmap(NULL, size + SOM, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0 );
+        if(address == (void*)-1){
+            return nullptr;
+        }
+        ((MallocMetadata*)address)->size = size;
+        ((MallocMetadata*)address)->is_free = false;
+        mmap_list.addMetadata((MallocMetadata*)address);
+        updateStatistics(1, 0, size, 0, 1 );
+        return (char*)address + SOM;
     }
 }
 
@@ -326,9 +493,15 @@ void sfree(void* p) {
         return;
     }
     block->is_free = true;
-    MallocMetadata* end_metadata = (MallocMetadata*)((void*)block + block->size);
-    end_metadata->is_free = true;
-    mergeBlocks(block);
+    if(block->size < MMAP_THRESHOLD) {
+        MallocMetadata* end_metadata = (MallocMetadata*)((char*)block + block->size);
+        end_metadata->is_free = true;
+        mergeBlocks(block);
+    }
+    else {
+        mmap_list.removeMetadata(block);
+        munmap(block, block->size + SOM);
+    }
 }
 
 void* srealloc(void* oldp, size_t size) {
@@ -340,15 +513,35 @@ void* srealloc(void* oldp, size_t size) {
     }
     MallocMetadata* block = (MallocMetadata*)oldp - 1;
     if(block->size >= size) {
+        // case a
+        if(block->size - size - 2*SOM> MIN_SPLIT_SIZE) {
+            splitBlock(size, block);
+        }
         return oldp;
     }
-    void* newp = smalloc(size);
-    if(newp != nullptr) {
-        std::memmove(newp, oldp, size);
+    if(block->size < MMAP_THRESHOLD) {
+        // allocated with sbrk
+        bool should_split = false;
+        void* address = tryMergeRealloc(block, size + (8 - (size % 8)), &should_split);  // multiple of 8
+        if(address != nullptr) {
+            if(((MallocMetadata*)address)->size - size - 2*SOM > MIN_SPLIT_SIZE) {
+                splitBlock(size, address);
+            }
+            return address;
+        }
+        address = smalloc(size);
+        std::memmove((char*)address + SOM, oldp, block->size);
         sfree(oldp);
+        return address;
     }
-    return newp;
-    
+    else {
+        // allocated with mmap
+        char* newp = (char*)smalloc(size);
+        std::memmove(newp, oldp, block->size);
+        sfree(oldp);
+        return newp;
+    }
+    return nullptr;
 }
 
 /**

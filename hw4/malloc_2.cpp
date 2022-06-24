@@ -2,6 +2,8 @@
 #include <iostream>
 #include <cstring>
 
+//TODO: only add free blocks to list
+
 struct MallocMetadata {
     // payload size in bytes
     size_t size;
@@ -91,7 +93,7 @@ void* smalloc(size_t size) {
     if(address) {
         ((MallocMetadata*)address)->is_free = false;
         block_list.updateStatistics(0, -1, 0, -((MallocMetadata*)address)->size, 0);
-        return (void*)address + block_list.size_of_metadata;
+        return (char*)address + block_list.size_of_metadata;
     }
     void* new_address = sbrk(size + block_list.size_of_metadata);
     if(new_address == (void*)-1) {
@@ -101,7 +103,7 @@ void* smalloc(size_t size) {
     ((MallocMetadata*)new_address)->size = size;
     block_list.updateStatistics(1, 0, size, 0, block_list.size_of_metadata);
     block_list.addMetadata((MallocMetadata*)new_address);
-    return new_address + block_list.size_of_metadata;
+    return (char*)new_address + block_list.size_of_metadata;
 }
 
 void* scalloc(size_t num, size_t size) {
@@ -138,7 +140,7 @@ void* srealloc(void* oldp, size_t size) {
     }
     void* newp = smalloc(size);
     if(newp != nullptr) {
-        std::memmove(newp, oldp, size);
+        std::memmove(newp, oldp, block->size);
         sfree(oldp);
     }
     return newp;
