@@ -301,7 +301,7 @@ void mergeBlocks(void* address) {
     }
 }
 
-void* tryMergeRealloc(void* address, size_t size, bool* should_split) {
+void* tryMergeRealloc(void* address, size_t size) {
     MallocMetadata* prev_metadata;
     MallocMetadata* next_metadata;
     MallocMetadata* current = (MallocMetadata*)address;
@@ -321,7 +321,6 @@ void* tryMergeRealloc(void* address, size_t size, bool* should_split) {
     bool next_free = next_metadata ? next_metadata->is_free : false;
     if(prev_free) {
         // case b
-        prev_metadata = (MallocMetadata*)((char*)prev_metadata - prev_metadata->size - SOM);
         if(current == block_list.wilderness) {
             if(size >= (current->size + prev_metadata->size + 2*SOM)) {
                 // need to enlarge wilderness
@@ -333,9 +332,10 @@ void* tryMergeRealloc(void* address, size_t size, bool* should_split) {
                 updateStatistics(0, 0, added_size, 0, 0);
                 assert(size <= current->size + prev_metadata->size + 2*SOM);
             }
-            block_list.wilderness = prev_metadata;
+            block_list.wilderness = (MallocMetadata*)((char*)prev_metadata - prev_metadata->size - SOM);
         }
         if(size <= current->size + prev_metadata->size + 2*SOM) {
+            prev_metadata = (MallocMetadata*)((char*)prev_metadata - prev_metadata->size - SOM);
             updateStatistics(-1, -1, 2*SOM, -prev_metadata->size, -2*SOM);
             prev_metadata->size += current->size + 2*SOM;
             prev_metadata->is_free = false;
@@ -344,7 +344,6 @@ void* tryMergeRealloc(void* address, size_t size, bool* should_split) {
             block_list.removeMetadata(prev_metadata);
             block_list.addMetadata(prev_metadata);
             std::memmove((char*)prev_metadata + prev_metadata->size + SOM, prev_metadata, SOM);
-            *should_split = true;
             return (char*)prev_metadata + SOM;
         }
     }
@@ -364,7 +363,6 @@ void* tryMergeRealloc(void* address, size_t size, bool* should_split) {
         block_list.removeMetadata(current);
         block_list.addMetadata(current);
         std::memmove((char*)current + current->size + SOM, current, SOM);
-        *should_split = true;
         return (char*)address + SOM;
     }
     if(next_free && (size <= next_metadata->size + current->size + 2*SOM)) {
@@ -376,7 +374,6 @@ void* tryMergeRealloc(void* address, size_t size, bool* should_split) {
         block_list.removeMetadata(next_metadata);
         block_list.addMetadata(current);
         std::memmove((char*)current + current->size + SOM, current, SOM);
-        *should_split = true;
         return (char*)address + SOM;
     }
     if(prev_free && next_free && (size <= prev_metadata->size + current->size + next_metadata->size + 4*SOM)) {
@@ -395,10 +392,9 @@ void* tryMergeRealloc(void* address, size_t size, bool* should_split) {
     }
     if(next_free && next_metadata == block_list.wilderness) {
         // case f
-        assert(size <= prev_metadata->size + current->size + next_metadata->size + 4*SOM);
         if(prev_free) {
             // enlarge wilderness as needed and merge all 3 blocks
-            prev_metadata = prev_metadata - prev_metadata->size - SOM;
+            prev_metadata = (MallocMetadata*)((char*)prev_metadata - prev_metadata->size - SOM);
             size_t added_size = size - (prev_metadata->size + current->size + next_metadata->size + 4*SOM);
             assert(added_size > 0);
             assert(added_size % 8 == 0);
@@ -551,21 +547,21 @@ void* srealloc(void* oldp, size_t size) {
     }
     if(block->size < MMAP_THRESHOLD) {
         // allocated with sbrk
-        bool should_split = false;
         size_t aligned_size = (size % 8) ? size + (8 - (size % 8)) : size;
-        void* address = tryMergeRealloc(block, aligned_size, &should_split) - SOM;  // multiple of 8
+        void* address = (char*)tryMergeRealloc(block, aligned_size);  // multiple of 8
         if(address != nullptr) {
+            address = (char*)address - SOM;
             if(((MallocMetadata*)address)->size - size - 2*SOM > MIN_SPLIT_SIZE && 
                 ((MallocMetadata*)address)->size - size - 2*SOM < ((MallocMetadata*)address)->size) {
                 updateStatistics(0, 1, 0, ((MallocMetadata*)address)->size, 0);  // splitBlock thinks the block is free
                 splitBlock(size, address);
             }
-            return address;
+            return (char*)address + SOM;
         }
-        address = smalloc(size);
-        std::memmove((char*)address + SOM, oldp, block->size);
         sfree(oldp);
-        return address + SOM;
+        address = smalloc(size);
+        std::memmove((char*)address, oldp, block->size);
+        return (char*)address;
     }
     else {
         // allocated with mmap
