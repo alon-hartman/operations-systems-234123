@@ -6,7 +6,7 @@ void* smalloc(size_t size) {
     }
     void* res = sbrk(size);
     if(res == (void*)-1) {
-        nullptr;
+        return nullptr;
     }
     return res;
 }

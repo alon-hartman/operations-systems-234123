@@ -86,7 +86,7 @@ class BlockList
 BlockList block_list;
 
 void* smalloc(size_t size) {
-    if(size == 0 || size > 100000000 /*10^8*/) {
+    if(size == 0 || size > 1e8 /*10^8*/) {
         return nullptr;
     }
     MallocMetadata* address = block_list.searchFreeBlock(size);
@@ -152,9 +152,9 @@ void* srealloc(void* oldp, size_t size) {
  * Returns the number of allocated blocks in the heap that are currently free.
  * @return size_t 
  */
-size_t _num_free_blocks(){
+size_t _num_free_blocks() {
     return block_list.free_blocks;
-};
+}
 
 /**
  * @brief 
@@ -162,9 +162,9 @@ size_t _num_free_blocks(){
     excluding the bytes used by the meta-data structs.
  * @return size_t 
  */
-size_t _num_free_bytes(){
+size_t _num_free_bytes() {
     return block_list.free_bytes;
-};
+}
 
 /**
  * @brief 
