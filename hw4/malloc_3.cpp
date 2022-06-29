@@ -1,5 +1,5 @@
 #include <unistd.h>
-#include <iostream>
+// #include <iostream>
 #include <cstring>
 #include <sys/mman.h>
 #include <sys/user.h>
@@ -112,7 +112,7 @@ class BlockList
                 }
                 iter = iter->next;
             }
-            std::cout << "should never reach here: didn't find slot to add metadata" << std::endl;
+            // std::cout << "should never reach here: didn't find slot to add metadata" << std::endl;
             size--;
         }
 
@@ -136,7 +136,7 @@ class BlockList
                 }
                 iter = iter->next;
             }
-            std::cout << "should never reach here COPIUM: didn't find metadata to remove" << std::endl;
+            // std::cout << "should never reach here COPIUM: didn't find metadata to remove" << std::endl;
             size++;
         }
 
@@ -155,15 +155,6 @@ class BlockList
                 iter = iter->next;
             }
             return nullptr;
-        }
-        void printList(){
-            MallocMetadata* it = head;
-            
-            for(size_t i = 0; i < allocated_blocks; i++){
-                 std::cout<< "# " << i << "size: " << it->size << "-->" ;
-                 it = (MallocMetadata*)((char*)it + it->size + 2*SOM);
-            }
-            std::cout << std::endl;
         }
 };
 
@@ -206,7 +197,7 @@ class MmapList
                 }
                 iter = iter->next;
             }
-            std::cout << "Mmap should never reach here COPIUM: didn't find metadata to remove" << std::endl;
+            // std::cout << "Mmap should never reach here COPIUM: didn't find metadata to remove" << std::endl;
         }
 };
 
